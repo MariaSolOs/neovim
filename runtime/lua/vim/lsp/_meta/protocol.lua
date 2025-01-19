@@ -2582,6 +2582,12 @@ error('Cannot require a meta file')
 ---@proposed
 ---@field inlineCompletionProvider? boolean|lsp.InlineCompletionOptions
 ---
+---Text document specific server capabilities.
+---
+---@since 3.18.0
+---@proposed
+---@field textDocument? lsp._anonym12.textDocument
+---
 ---Workspace specific server capabilities.
 ---@field workspace? lsp.WorkspaceOptions
 ---
@@ -2659,8 +2665,10 @@ error('Cannot require a meta file')
 ---appears in the user interface.
 ---@field source? string
 ---
----The diagnostic's message. It usually appears in the user interface
----@field message string
+---The diagnostic's message. It usually appears in the user interface.
+---
+---@since 3.18.0 - support for `MarkupContent`. This is guarded by the client capability `textDocument.diagnostic.markupMessageSupport`.
+---@field message string|lsp.MarkupContent
 ---
 ---Additional metadata about the diagnostic.
 ---
@@ -2912,6 +2920,8 @@ error('Cannot require a meta file')
 ---errors are currently presented to the user for the given range. There is no guarantee
 ---that these accurately reflect the error state of the resource. The primary parameter
 ---to compute code actions is the provided range.
+---
+---Note that the client should check the `textDocument.diagnostic.markupMessageSupport` server capability before sending diagnostics with markup messages to a server.
 ---@field diagnostics lsp.Diagnostic[]
 ---
 ---Requested kind of actions to return.
@@ -4210,7 +4220,11 @@ error('Cannot require a meta file')
 ---capabilities.
 ---
 ---@since 3.17.0
+<<<<<<< HEAD
 ---@field completionList? lsp.CompletionListCapabilities
+=======
+---@field completionList? lsp._anonym30.completionList
+>>>>>>> diag_spec_changes
 
 ---@class lsp.HoverClientCapabilities
 ---
@@ -4229,7 +4243,11 @@ error('Cannot require a meta file')
 ---
 ---The client supports the following `SignatureInformation`
 ---specific properties.
+<<<<<<< HEAD
 ---@field signatureInformation? lsp.ClientSignatureInformationOptions
+=======
+---@field signatureInformation? lsp._anonym31.signatureInformation
+>>>>>>> diag_spec_changes
 ---
 ---The client supports to send additional context information for a
 ---`textDocument/signatureHelp` request. A client that opts into
@@ -4307,7 +4325,11 @@ error('Cannot require a meta file')
 ---
 ---Specific capabilities for the `SymbolKind` in the
 ---`textDocument/documentSymbol` request.
+<<<<<<< HEAD
 ---@field symbolKind? lsp.ClientSymbolKindOptions
+=======
+---@field symbolKind? lsp._anonym33.symbolKind
+>>>>>>> diag_spec_changes
 ---
 ---The client supports hierarchical document symbols.
 ---@field hierarchicalDocumentSymbolSupport? boolean
@@ -4317,7 +4339,11 @@ error('Cannot require a meta file')
 ---Clients supporting tags have to handle unknown tags gracefully.
 ---
 ---@since 3.16.0
+<<<<<<< HEAD
 ---@field tagSupport? lsp.ClientSymbolTagOptions
+=======
+---@field tagSupport? lsp._anonym34.tagSupport
+>>>>>>> diag_spec_changes
 ---
 ---The client supports an additional label presented in the UI when
 ---registering a document symbol provider.
@@ -4336,7 +4362,11 @@ error('Cannot require a meta file')
 ---set the request can only return `Command` literals.
 ---
 ---@since 3.8.0
+<<<<<<< HEAD
 ---@field codeActionLiteralSupport? lsp.ClientCodeActionLiteralOptions
+=======
+---@field codeActionLiteralSupport? lsp._anonym35.codeActionLiteralSupport
+>>>>>>> diag_spec_changes
 ---
 ---Whether code action supports the `isPreferred` property.
 ---
@@ -4359,7 +4389,11 @@ error('Cannot require a meta file')
 ---properties via a separate `codeAction/resolve` request.
 ---
 ---@since 3.16.0
+<<<<<<< HEAD
 ---@field resolveSupport? lsp.ClientCodeActionResolveOptions
+=======
+---@field resolveSupport? lsp._anonym37.resolveSupport
+>>>>>>> diag_spec_changes
 ---
 ---Whether the client honors the change annotations in
 ---text edits and resource operations returned via the
@@ -4480,12 +4514,20 @@ error('Cannot require a meta file')
 ---Specific options for the folding range kind.
 ---
 ---@since 3.17.0
+<<<<<<< HEAD
 ---@field foldingRangeKind? lsp.ClientFoldingRangeKindOptions
+=======
+---@field foldingRangeKind? lsp._anonym38.foldingRangeKind
+>>>>>>> diag_spec_changes
 ---
 ---Specific options for the folding range.
 ---
 ---@since 3.17.0
+<<<<<<< HEAD
 ---@field foldingRange? lsp.ClientFoldingRangeOptions
+=======
+---@field foldingRange? lsp._anonym39.foldingRange
+>>>>>>> diag_spec_changes
 
 ---@class lsp.SelectionRangeClientCapabilities
 ---
@@ -4495,7 +4537,20 @@ error('Cannot require a meta file')
 ---@field dynamicRegistration? boolean
 
 ---The publish diagnostic client capabilities.
+<<<<<<< HEAD
 ---@class lsp.PublishDiagnosticsClientCapabilities: lsp.DiagnosticsCapabilities
+=======
+---@class lsp.PublishDiagnosticsClientCapabilities
+---
+---Whether the clients accepts diagnostics with related information.
+---@field relatedInformation? boolean
+---
+---Client supports the tag property to provide meta data about a diagnostic.
+---Clients supporting tags have to handle unknown tags gracefully.
+---
+---@since 3.15.0
+---@field tagSupport? lsp._anonym40.tagSupport
+>>>>>>> diag_spec_changes
 ---
 ---Whether the client interprets the version property of the
 ---`textDocument/publishDiagnostics` notification's parameter.
@@ -4527,7 +4582,11 @@ error('Cannot require a meta file')
 ---`request.range` are both set to true but the server only provides a
 ---range provider the client might not render a minimap correctly or might
 ---even decide to not show any semantic tokens at all.
+<<<<<<< HEAD
 ---@field requests lsp.ClientSemanticTokensRequestOptions
+=======
+---@field requests lsp._anonym41.requests
+>>>>>>> diag_spec_changes
 ---
 ---The token types that the client supports.
 ---@field tokenTypes string[]
@@ -4610,7 +4669,11 @@ error('Cannot require a meta file')
 ---
 ---Indicates which properties a client can resolve lazily on an inlay
 ---hint.
+<<<<<<< HEAD
 ---@field resolveSupport? lsp.ClientInlayHintResolveOptions
+=======
+---@field resolveSupport? lsp._anonym44.resolveSupport
+>>>>>>> diag_spec_changes
 
 ---Client capabilities specific to diagnostic pull requests.
 ---
@@ -4624,6 +4687,9 @@ error('Cannot require a meta file')
 ---
 ---Whether the clients supports related documents for document diagnostic pulls.
 ---@field relatedDocumentSupport? boolean
+---
+---Whether the client supports `MarkupContent` in diagnostic messages.
+---@field markupMessageSupport? boolean
 
 ---Client capabilities specific to inline completions.
 ---

@@ -1199,6 +1199,7 @@ function M.code_action(opts)
   if not context.triggerKind then
     context.triggerKind = lsp.protocol.CodeActionTriggerKind.Invoked
   end
+
   local mode = api.nvim_get_mode().mode
   local bufnr = api.nvim_get_current_buf()
   local win = api.nvim_get_current_win()
@@ -1255,6 +1256,13 @@ function M.code_action(opts)
           return d.user_data.lsp
         end, diagnostics),
       })
+    end
+
+    -- Don't send markup to clients that don't support it.
+    if not client.server_capabilities.textDocument.diagnostic.markupMessageSupport then
+      context.diagnostics = vim.iter(context.diagnostics):filter(function(diag)
+        return type(diag.message) == 'string'
+      end)
     end
 
     client:request(ms.textDocument_codeAction, params, on_result, bufnr)
