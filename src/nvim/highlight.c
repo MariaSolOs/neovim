@@ -48,7 +48,7 @@ static Set(cstr_t) urls = SET_INIT;
 
 /// highlight entries private to a namespace
 static Map(ColorKey, ColorItem) ns_hls;
-typedef int NSHlAttr[HLF_COUNT + 1];
+typedef int NSHlAttr[HLF_COUNT];
 static PMap(int) ns_hl_attr;
 
 void highlight_init(void)
@@ -219,11 +219,10 @@ int ns_get_hl(NS *ns_hl, int hl_id, bool link, bool nodefault)
     bool fallback = true;
     int tmp = false;
     HlAttrs attrs = HLATTRS_INIT;
-    if (ret.type == kObjectTypeDictionary) {
+    if (ret.type == kObjectTypeDict) {
       fallback = false;
       Dict(highlight) dict = KEYDICT_INIT;
-      if (api_dict_to_keydict(&dict, KeyDict_highlight_get_field,
-                              ret.data.dictionary, &err)) {
+      if (api_dict_to_keydict(&dict, KeyDict_highlight_get_field, ret.data.dict, &err)) {
         attrs = dict2hlattrs(&dict, true, &it.link_id, &err);
         fallback = GET_BOOL_OR_TRUE(&dict, highlight, fallback);
         tmp = dict.fallback;  // or false
@@ -370,12 +369,15 @@ void update_window_hl(win_T *wp, bool invalid)
 
   // determine window specific background set in 'winhighlight'
   bool float_win = wp->w_floating && !wp->w_config.external;
-  if (float_win && hl_def[HLF_NFLOAT] != 0) {
+  if (float_win && hl_def[HLF_NFLOAT] != 0 && ns_id > 0) {
     wp->w_hl_attr_normal = hl_def[HLF_NFLOAT];
-  } else if (hl_def[HLF_COUNT] > 0) {
-    wp->w_hl_attr_normal = hl_def[HLF_COUNT];
+  } else if (hl_def[HLF_NONE] > 0) {
+    wp->w_hl_attr_normal = hl_def[HLF_NONE];
+  } else if (float_win) {
+    wp->w_hl_attr_normal = HL_ATTR(HLF_NFLOAT) > 0
+                           ? HL_ATTR(HLF_NFLOAT) : highlight_attr[HLF_NFLOAT];
   } else {
-    wp->w_hl_attr_normal = float_win ? HL_ATTR(HLF_NFLOAT) : 0;
+    wp->w_hl_attr_normal = 0;
   }
 
   if (wp->w_floating) {
@@ -431,7 +433,7 @@ void update_ns_hl(int ns_id)
   }
   int *hl_attrs = **alloc;
 
-  for (int hlf = 0; hlf < HLF_COUNT; hlf++) {
+  for (int hlf = 1; hlf < HLF_COUNT; hlf++) {
     int id = syn_check_group(hlf_names[hlf], strlen(hlf_names[hlf]));
     bool optional = (hlf == HLF_INACTIVE || hlf == HLF_NFLOAT);
     hl_attrs[hlf] = hl_get_ui_attr(ns_id, hlf, id, optional);
@@ -442,7 +444,7 @@ void update_ns_hl(int ns_id)
   //
   // haha, tema engine go brrr
   int normality = syn_check_group(S_LEN("Normal"));
-  hl_attrs[HLF_COUNT] = hl_get_ui_attr(ns_id, -1, normality, true);
+  hl_attrs[HLF_NONE] = hl_get_ui_attr(ns_id, -1, normality, true);
 
   // hl_get_ui_attr might have invalidated the decor provider
   p = get_decor_provider(ns_id, true);
@@ -459,7 +461,7 @@ int win_bg_attr(win_T *wp)
   }
 
   if (wp == curwin || hl_attr_active[HLF_INACTIVE] == 0) {
-    return hl_attr_active[HLF_COUNT];
+    return hl_attr_active[HLF_NONE];
   } else {
     return hl_attr_active[HLF_INACTIVE];
   }
@@ -872,9 +874,9 @@ HlAttrs syn_attr2entry(int attr)
 }
 
 /// Gets highlight description for id `attr_id` as a map.
-Dictionary hl_get_attr_by_id(Integer attr_id, Boolean rgb, Arena *arena, Error *err)
+Dict hl_get_attr_by_id(Integer attr_id, Boolean rgb, Arena *arena, Error *err)
 {
-  Dictionary dic = ARRAY_DICT_INIT;
+  Dict dic = ARRAY_DICT_INIT;
 
   if (attr_id == 0) {
     return dic;
@@ -885,19 +887,19 @@ Dictionary hl_get_attr_by_id(Integer attr_id, Boolean rgb, Arena *arena, Error *
                   "Invalid attribute id: %" PRId64, attr_id);
     return dic;
   }
-  Dictionary retval = arena_dict(arena, HLATTRS_DICT_SIZE);
+  Dict retval = arena_dict(arena, HLATTRS_DICT_SIZE);
   hlattrs2dict(&retval, NULL, syn_attr2entry((int)attr_id), rgb, false);
   return retval;
 }
 
-/// Converts an HlAttrs into Dictionary
+/// Converts an HlAttrs into Dict
 ///
-/// @param[in/out] hl Dictionary with pre-allocated space for HLATTRS_DICT_SIZE elements
+/// @param[in/out] hl Dict with pre-allocated space for HLATTRS_DICT_SIZE elements
 /// @param[in] aep data to convert
 /// @param use_rgb use 'gui*' settings if true, else resorts to 'cterm*'
 /// @param short_keys change (foreground, background, special) to (fg, bg, sp) for 'gui*' settings
 ///                          (foreground, background) to (ctermfg, ctermbg) for 'cterm*' settings
-void hlattrs2dict(Dictionary *hl, Dictionary *hl_attrs, HlAttrs ae, bool use_rgb, bool short_keys)
+void hlattrs2dict(Dict *hl, Dict *hl_attrs, HlAttrs ae, bool use_rgb, bool short_keys)
 {
   hl_attrs = hl_attrs ? hl_attrs : hl;
   assert(hl->capacity >= HLATTRS_DICT_SIZE);  // at most 16 items
@@ -1073,10 +1075,10 @@ HlAttrs dict2hlattrs(Dict(highlight) *dict, bool use_rgb, int *link_id, Error *e
       return hlattrs;
     }
     if (HAS_KEY_X(dict, global_link)) {
-      *link_id = object_to_hl_id(dict->global_link, "link", err);
+      *link_id = (int)dict->global_link;
       mask |= HL_GLOBAL;
     } else {
-      *link_id = object_to_hl_id(dict->link, "link", err);
+      *link_id = (int)dict->link;
     }
 
     if (ERROR_SET(err)) {
@@ -1085,10 +1087,10 @@ HlAttrs dict2hlattrs(Dict(highlight) *dict, bool use_rgb, int *link_id, Error *e
   }
 
   // Handle cterm attrs
-  if (dict->cterm.type == kObjectTypeDictionary) {
+  if (dict->cterm.type == kObjectTypeDict) {
     Dict(highlight_cterm) cterm[1] = KEYDICT_INIT;
     if (!api_dict_to_keydict(cterm, KeyDict_highlight_cterm_get_field,
-                             dict->cterm.data.dictionary, err)) {
+                             dict->cterm.data.dict, err)) {
       return hlattrs;
     }
 
@@ -1098,6 +1100,9 @@ HlAttrs dict2hlattrs(Dict(highlight) *dict, bool use_rgb, int *link_id, Error *e
     CHECK_FLAG(cterm, cterm_mask, italic, , HL_ITALIC);
     CHECK_FLAG(cterm, cterm_mask, underline, , HL_UNDERLINE);
     CHECK_FLAG(cterm, cterm_mask, undercurl, , HL_UNDERCURL);
+    CHECK_FLAG(cterm, cterm_mask, underdouble, , HL_UNDERDOUBLE);
+    CHECK_FLAG(cterm, cterm_mask, underdotted, , HL_UNDERDOTTED);
+    CHECK_FLAG(cterm, cterm_mask, underdashed, , HL_UNDERDASHED);
     CHECK_FLAG(cterm, cterm_mask, standout, , HL_STANDOUT);
     CHECK_FLAG(cterm, cterm_mask, strikethrough, , HL_STRIKETHROUGH);
     CHECK_FLAG(cterm, cterm_mask, altfont, , HL_ALTFONT);
@@ -1203,7 +1208,7 @@ static size_t hl_inspect_size(int attr)
 
 static void hl_inspect_impl(Array *arr, int attr, Arena *arena)
 {
-  Dictionary item = ARRAY_DICT_INIT;
+  Dict item = ARRAY_DICT_INIT;
   if (attr <= 0 || attr >= (int)set_size(&attr_entries)) {
     return;
   }
@@ -1242,5 +1247,5 @@ static void hl_inspect_impl(Array *arr, int attr, Arena *arena)
     return;
   }
   PUT_C(item, "id", INTEGER_OBJ(attr));
-  ADD_C(*arr, DICTIONARY_OBJ(item));
+  ADD_C(*arr, DICT_OBJ(item));
 }

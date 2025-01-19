@@ -1,6 +1,6 @@
 name: Feature request
-description: Request an enhancement for Neovim
-labels: [enhancement]
+description: Request an enhancement for Nvim
+type: 'enhancement'
 body:
 
   - type: markdown

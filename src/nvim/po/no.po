@@ -401,8 +401,7 @@ msgid " Omni completion (^O^N^P)"
 msgstr " Omni-fullføring (^O^N^P)"
 
 #: ../edit.c:96
-#, fuzzy
-msgid " Spelling suggestion (s^N^P)"
+msgid " Spelling suggestion (^S^N^P)"
 msgstr " Staveforslag (^S^N^P)"
 
 #: ../edit.c:97
@@ -1237,8 +1236,8 @@ msgstr "E146: Regulære uttrykk kan ikke bli adskilt av bokstaver"
 
 #: ../ex_cmds.c:3964
 #, c-format
-msgid "replace with %s (y/n/a/q/l/^E/^Y)?"
-msgstr "Erstatt med %s (y/n/a/q/l/^E/^Y)?"
+msgid "replace with %s? (y)es/(n)o/(a)ll/(q)uit/(l)ast/scroll up(^E)/down(^Y)"
+msgstr "Erstatt med %s? (y)es/(n)o/(a)ll/(q)uit/(l)ast/scroll up(^E)/down(^Y)"
 
 #: ../ex_cmds.c:4379
 msgid "(Interrupted) "
@@ -3979,8 +3978,8 @@ msgstr ""
 "(2) En økt for denne filen kræsjet.\n"
 
 #: ../memline.c:3247
-msgid "    If this is the case, use \":recover\" or \"vim -r "
-msgstr "    Hvis det er tilfelle, bruk \":recover\" eller \"vim -r "
+msgid "    If this is the case, use \":recover\" or \"nvim -r "
+msgstr "    Hvis det er tilfelle, bruk \":recover\" eller \"nvim -r "
 
 #: ../memline.c:3249
 msgid ""

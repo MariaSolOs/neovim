@@ -1,6 +1,6 @@
 "  matchit.vim: (global plugin) Extended "%" matching
 "  autload script of matchit plugin, see ../plugin/matchit.vim
-"  Last Change: Jan 24, 2022
+"  Last Change: May 20, 2024
 
 " Neovim does not support scriptversion
 if has("vimscript-4")
@@ -87,9 +87,9 @@ function matchit#Match_wrapper(word, forward, mode) range
     let s:last_mps = &mps
     " quote the special chars in 'matchpairs', replace [,:] with \| and then
     " append the builtin pairs (/*, */, #if, #ifdef, #ifndef, #else, #elif,
-    " #endif)
+    " #elifdef, #elifndef, #endif)
     let default = escape(&mps, '[$^.*~\\/?]') .. (strlen(&mps) ? "," : "") ..
-      \ '\/\*:\*\/,#\s*if\%(n\=def\)\=:#\s*else\>:#\s*elif\>:#\s*endif\>'
+      \ '\/\*:\*\/,#\s*if\%(n\=def\)\=:#\s*else\>:#\s*elif\%(n\=def\)\=\>:#\s*endif\>'
     " s:all = pattern with all the keywords
     let match_words = match_words .. (strlen(match_words) ? "," : "") .. default
     let s:last_words = match_words
@@ -101,6 +101,8 @@ function matchit#Match_wrapper(word, forward, mode) range
       let s:pat = s:ParseWords(match_words)
     endif
     let s:all = substitute(s:pat, s:notslash .. '\zs[,:]\+', '\\|', 'g')
+    " un-escape \, to ,
+    let s:all = substitute(s:all, '\\,', ',', 'g')
     " Just in case there are too many '\(...)' groups inside the pattern, make
     " sure to use \%(...) groups, so that error E872 can be avoided
     let s:all = substitute(s:all, '\\(', '\\%(', 'g')
@@ -112,6 +114,8 @@ function matchit#Match_wrapper(word, forward, mode) range
     let s:patBR = substitute(match_words .. ',',
       \ s:notslash .. '\zs[,:]*,[,:]*', ',', 'g')
     let s:patBR = substitute(s:patBR, s:notslash .. '\zs:\{2,}', ':', 'g')
+    " un-escape \, to ,
+    let s:patBR = substitute(s:patBR, '\\,', ',', 'g')
   endif
 
   " Second step:  set the following local variables:
@@ -218,6 +222,7 @@ function matchit#Match_wrapper(word, forward, mode) range
   let view = winsaveview()
   call cursor(0, curcol + 1)
   if skip =~ 'synID' && !(has("syntax") && exists("g:syntax_on"))
+        \ || skip =~ 'v:lua.vim.treesitter' && !exists('b:ts_highlight')
     let skip = "0"
   else
     execute "if " .. skip .. "| let skip = '0' | endif"
@@ -534,6 +539,8 @@ fun! s:Choose(patterns, string, comma, branch, prefix, suffix, ...)
   else
     let currpat = substitute(current, s:notslash .. a:branch, '\\|', 'g')
   endif
+  " un-escape \, to ,
+  let currpat = substitute(currpat, '\\,', ',', 'g')
   while a:string !~ a:prefix .. currpat .. a:suffix
     let tail = strpart(tail, i)
     let i = matchend(tail, s:notslash .. a:comma)
@@ -672,6 +679,7 @@ fun! matchit#MultiMatch(spflag, mode)
   let middlepat = substitute(middlepat, ',', '\\|', 'g')
 
   if skip =~ 'synID' && !(has("syntax") && exists("g:syntax_on"))
+        \ || skip =~ 'v:lua.vim.treesitter' && !exists('b:ts_highlight')
     let skip = '0'
   else
     try
@@ -754,10 +762,16 @@ endfun
 "   S:foo becomes (current syntax item) !~ foo
 "   r:foo becomes (line before cursor) =~ foo
 "   R:foo becomes (line before cursor) !~ foo
+"   t:foo becomes (current treesitter captures) =~ foo
+"   T:foo becomes (current treesitter captures) !~ foo
 fun! s:ParseSkip(str)
   let skip = a:str
   if skip[1] == ":"
-    if skip[0] ==# "s"
+    if skip[0] ==# "t" || skip[0] ==# "s" && &syntax != 'on' && exists("b:ts_highlight")
+      let skip = "match(v:lua.vim.treesitter.get_captures_at_cursor(), '" .. strpart(skip,2) .. "') != -1"
+    elseif skip[0] ==# "T" || skip[0] ==# "S" && &syntax != 'on' && exists("b:ts_highlight")
+      let skip = "match(v:lua.vim.treesitter.get_captures_at_cursor(), '" .. strpart(skip,2) .. "') == -1"
+    elseif skip[0] ==# "s"
       let skip = "synIDattr(synID(line('.'),col('.'),1),'name') =~? '" ..
         \ strpart(skip,2) .. "'"
     elseif skip[0] ==# "S"

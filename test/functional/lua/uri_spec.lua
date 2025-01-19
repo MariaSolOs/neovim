@@ -1,6 +1,8 @@
-local t = require('test.functional.testutil')()
-local clear = t.clear
-local exec_lua = t.exec_lua
+local t = require('test.testutil')
+local n = require('test.functional.testnvim')()
+
+local clear = n.clear
+local exec_lua = n.exec_lua
 local eq = t.eq
 local is_os = t.is_os
 local skip = t.skip
@@ -215,7 +217,7 @@ describe('URI methods', function()
         ]],
         file
       )
-      local expected_uri = 'file:///' .. file:gsub('\\', '/')
+      local expected_uri = 'file:///' .. t.fix_slashes(file)
       eq(expected_uri, exec_lua(test_case))
       os.remove(file)
     end)
@@ -249,5 +251,13 @@ describe('URI methods', function()
         eq(uri, exec_lua(test_case))
       end
     )
+  end)
+
+  describe('encode to uri', function()
+    it('rfc2732 including brackets', function()
+      exec_lua("str = '[:]'")
+      exec_lua("rfc = 'rfc2732'")
+      eq('[%3a]', exec_lua('return vim.uri_encode(str, rfc)'))
+    end)
   end)
 end)

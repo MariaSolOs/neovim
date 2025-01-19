@@ -98,6 +98,11 @@ func Test_err_teapot()
   call assert_fails('call err_teapot(expr)', "E503: Coffee is currently not available")
 endfunc
 
+func Test_islocked()
+  call assert_fails('call islocked(99)', 'E475:')
+  call assert_fails('call islocked("s: x")', 'E488:')
+endfunc
+
 func Test_len()
   call assert_equal(1, len(0))
   call assert_equal(2, len(12))
@@ -267,17 +272,17 @@ func Test_strftime()
     let tz = $TZ
   endif
 
-  " Force EST and then UTC, save the current hour (24-hour clock) for each
-  let $TZ = 'EST' | let est = strftime('%H')
-  let $TZ = 'UTC' | let utc = strftime('%H')
+  " Force different time zones, save the current hour (24-hour clock) for each
+  let $TZ = 'GMT+1' | let one = strftime('%H')
+  let $TZ = 'GMT+2' | let two = strftime('%H')
 
   " Those hours should be two bytes long, and should not be the same; if they
   " are, a tzset(3) call may have failed somewhere
-  call assert_equal(strlen(est), 2)
-  call assert_equal(strlen(utc), 2)
+  call assert_equal(strlen(one), 2)
+  call assert_equal(strlen(two), 2)
   " TODO: this fails on MS-Windows
   if has('unix')
-    call assert_notequal(est, utc)
+    call assert_notequal(one, two)
   endif
 
   " If we cached a timezone value, put it back, otherwise clear it
@@ -378,6 +383,12 @@ func Test_simplify()
   call assert_equal('/',           simplify('/.'))
   call assert_equal('/',           simplify('/..'))
   call assert_equal('/...',        simplify('/...'))
+  call assert_equal('//path',      simplify('//path'))
+  if has('unix')
+    call assert_equal('/path',       simplify('///path'))
+    call assert_equal('/path',       simplify('////path'))
+  endif
+
   call assert_equal('./dir/file',  './dir/file'->simplify())
   call assert_equal('./dir/file',  simplify('.///dir//file'))
   call assert_equal('./dir/file',  simplify('./dir/./file'))
@@ -804,6 +815,10 @@ func Test_mode()
   call assert_equal('c-cv', g:current_modes)
   call feedkeys("gQ\<Insert>\<F2>vi\<CR>", 'xt')
   call assert_equal("c-cvr", g:current_modes)
+
+  " Commandline mode in Visual mode should return "c-c", never "v-v".
+  call feedkeys("v\<Cmd>call input('')\<CR>\<F2>\<CR>\<Esc>", 'xt')
+  call assert_equal("c-c", g:current_modes)
 
   " Executing commands in Vim Ex mode should return "cv", never "cvr",
   " as Cmdline editing has already ended.
@@ -2060,6 +2075,7 @@ endfunc
 
 " Test for the inputdialog() function
 func Test_inputdialog()
+  set timeout timeoutlen=10
   if has('gui_running')
     call assert_fails('let v=inputdialog([], "xx")', 'E730:')
     call assert_fails('let v=inputdialog("Q", [])', 'E730:')
@@ -2069,6 +2085,7 @@ func Test_inputdialog()
     call feedkeys(":let v=inputdialog('Q:', 'xx', 'yy')\<CR>\<Esc>", 'xt')
     call assert_equal('yy', v)
   endif
+  set timeout& timeoutlen&
 endfunc
 
 " Test for inputlist()
@@ -2136,54 +2153,6 @@ func Test_balloon_show()
     call balloon_show(range(3))
     call balloon_show([])
   endif
-endfunc
-
-func Test_shellescape()
-  let save_shell = &shell
-  set shell=bash
-  call assert_equal("'text'", shellescape('text'))
-  call assert_equal("'te\"xt'", 'te"xt'->shellescape())
-  call assert_equal("'te'\\''xt'", shellescape("te'xt"))
-
-  call assert_equal("'te%xt'", shellescape("te%xt"))
-  call assert_equal("'te\\%xt'", shellescape("te%xt", 1))
-  call assert_equal("'te#xt'", shellescape("te#xt"))
-  call assert_equal("'te\\#xt'", shellescape("te#xt", 1))
-  call assert_equal("'te!xt'", shellescape("te!xt"))
-  call assert_equal("'te\\!xt'", shellescape("te!xt", 1))
-
-  call assert_equal("'te\nxt'", shellescape("te\nxt"))
-  call assert_equal("'te\\\nxt'", shellescape("te\nxt", 1))
-  set shell=tcsh
-  call assert_equal("'te\\!xt'", shellescape("te!xt"))
-  call assert_equal("'te\\\\!xt'", shellescape("te!xt", 1))
-  call assert_equal("'te\\\nxt'", shellescape("te\nxt"))
-  call assert_equal("'te\\\\\nxt'", shellescape("te\nxt", 1))
-
-  set shell=fish
-  call assert_equal("'text'", shellescape('text'))
-  call assert_equal("'te\"xt'", shellescape('te"xt'))
-  call assert_equal("'te'\\''xt'", shellescape("te'xt"))
-
-  call assert_equal("'te%xt'", shellescape("te%xt"))
-  call assert_equal("'te\\%xt'", shellescape("te%xt", 1))
-  call assert_equal("'te#xt'", shellescape("te#xt"))
-  call assert_equal("'te\\#xt'", shellescape("te#xt", 1))
-  call assert_equal("'te!xt'", shellescape("te!xt"))
-  call assert_equal("'te\\!xt'", shellescape("te!xt", 1))
-
-  call assert_equal("'te\\\\xt'", shellescape("te\\xt"))
-  call assert_equal("'te\\\\xt'", shellescape("te\\xt", 1))
-  call assert_equal("'te\\\\'\\''xt'", shellescape("te\\'xt"))
-  call assert_equal("'te\\\\'\\''xt'", shellescape("te\\'xt", 1))
-  call assert_equal("'te\\\\!xt'", shellescape("te\\!xt"))
-  call assert_equal("'te\\\\\\!xt'", shellescape("te\\!xt", 1))
-  call assert_equal("'te\\\\%xt'", shellescape("te\\%xt"))
-  call assert_equal("'te\\\\\\%xt'", shellescape("te\\%xt", 1))
-  call assert_equal("'te\\\\#xt'", shellescape("te\\#xt"))
-  call assert_equal("'te\\\\\\#xt'", shellescape("te\\#xt", 1))
-
-  let &shell = save_shell
 endfunc
 
 func Test_setbufvar_options()
@@ -2703,7 +2672,9 @@ endfunc
 func Test_call()
   call assert_equal(3, call('len', [123]))
   call assert_equal(3, 'len'->call([123]))
-  call assert_fails("call call('len', 123)", 'E714:')
+  call assert_equal(4, call({ x -> len(x) }, ['xxxx']))
+  call assert_equal(2, call(function('len'), ['xx']))
+  call assert_fails("call call('len', 123)", 'E1211:')
   call assert_equal(0, call('', []))
   call assert_equal(0, call('len', v:_null_list))
 
@@ -3128,7 +3099,7 @@ func Test_range()
     call assert_fails('call term_start(range(3, 4))', 'E474:')
     let g:terminal_ansi_colors = range(16)
     if has('win32')
-      let cmd = "cmd /c dir"
+      let cmd = "cmd /D /c dir"
     else
       let cmd = "ls"
     endif
@@ -3399,6 +3370,73 @@ func Test_getmousepos()
         \ column: 8,
         \ coladd: 21,
         \ }, getmousepos())
+
+  30vnew
+  setlocal smoothscroll number
+  call setline(1, join(range(100)))
+  exe "normal! \<C-E>"
+  call Ntest_setmouse(1, 5)
+  call assert_equal(#{
+        \ screenrow: 1,
+        \ screencol: 5,
+        \ winid: win_getid(),
+        \ winrow: 1,
+        \ wincol: 5,
+        \ line: 1,
+        \ column: 27,
+        \ coladd: 0,
+        \ }, getmousepos())
+  call Ntest_setmouse(2, 5)
+  call assert_equal(#{
+        \ screenrow: 2,
+        \ screencol: 5,
+        \ winid: win_getid(),
+        \ winrow: 2,
+        \ wincol: 5,
+        \ line: 1,
+        \ column: 53,
+        \ coladd: 0,
+        \ }, getmousepos())
+
+  exe "normal! \<C-E>"
+  call Ntest_setmouse(1, 5)
+  call assert_equal(#{
+        \ screenrow: 1,
+        \ screencol: 5,
+        \ winid: win_getid(),
+        \ winrow: 1,
+        \ wincol: 5,
+        \ line: 1,
+        \ column: 53,
+        \ coladd: 0,
+        \ }, getmousepos())
+  call Ntest_setmouse(2, 5)
+  call assert_equal(#{
+        \ screenrow: 2,
+        \ screencol: 5,
+        \ winid: win_getid(),
+        \ winrow: 2,
+        \ wincol: 5,
+        \ line: 1,
+        \ column: 79,
+        \ coladd: 0,
+        \ }, getmousepos())
+
+  vert resize 4
+  call Ntest_setmouse(2, 2)
+  " This used to crash Vim
+  call assert_equal(#{
+        \ screenrow: 2,
+        \ screencol: 2,
+        \ winid: win_getid(),
+        \ winrow: 2,
+        \ wincol: 2,
+        \ line: 1,
+        \ column: 53,
+        \ coladd: 0,
+        \ }, getmousepos())
+
+  bwipe!
   bwipe!
 endfunc
 
@@ -3422,6 +3460,56 @@ func Test_glob()
   call delete('XGLOB2')
 
   call assert_fails("call glob('*', 0, {})", 'E728:')
+endfunc
+
+func Test_glob2()
+  call mkdir('[XglobDir]', 'R')
+  call mkdir('abc[glob]def', 'R')
+
+  call writefile(['glob'], '[XglobDir]/Xglob')
+  call writefile(['glob'], 'abc[glob]def/Xglob')
+  if has("unix")
+    call assert_equal([], (glob('[XglobDir]/*', 0, 1)))
+    call assert_equal([], (glob('abc[glob]def/*', 0, 1)))
+    call assert_equal(['[XglobDir]/Xglob'], (glob('\[XglobDir]/*', 0, 1)))
+    call assert_equal(['abc[glob]def/Xglob'], (glob('abc\[glob]def/*', 0, 1)))
+  elseif has("win32")
+    let _sl=&shellslash
+    call assert_equal([], (glob('[XglobDir]\*', 0, 1)))
+    call assert_equal([], (glob('abc[glob]def\*', 0, 1)))
+    call assert_equal([], (glob('\[XglobDir]\*', 0, 1)))
+    call assert_equal([], (glob('abc\[glob]def\*', 0, 1)))
+    set noshellslash
+    call assert_equal(['[XglobDir]\Xglob'], (glob('[[]XglobDir]/*', 0, 1)))
+    call assert_equal(['abc[glob]def\Xglob'], (glob('abc[[]glob]def/*', 0, 1)))
+    set shellslash
+    call assert_equal(['[XglobDir]/Xglob'], (glob('[[]XglobDir]/*', 0, 1)))
+    call assert_equal(['abc[glob]def/Xglob'], (glob('abc[[]glob]def/*', 0, 1)))
+    let &shellslash=_sl
+  endif
+endfunc
+
+func Test_glob_symlinks()
+  call writefile([], 'Xglob1')
+
+  if has("win32")
+    silent !mklink XglobBad DoesNotExist
+    if v:shell_error
+      throw 'Skipped: cannot create symlinks'
+    endif
+    silent !mklink XglobOk Xglob1
+  else
+    silent !ln -s DoesNotExist XglobBad
+    silent !ln -s Xglob1 XglobOk
+  endif
+
+  " The broken symlink is excluded when alllinks is false.
+  call assert_equal(['Xglob1', 'XglobBad', 'XglobOk'], sort(glob('Xglob*', 0, 1, 1)))
+  call assert_equal(['Xglob1', 'XglobOk'], sort(glob('Xglob*', 0, 1, 0)))
+
+  call delete('Xglob1')
+  call delete('XglobBad')
+  call delete('XglobOk')
 endfunc
 
 " Test for browse()
@@ -3485,6 +3573,42 @@ func Test_builtin_check()
   unlet bar
 endfunc
 
+" Test for isabsolutepath()
+func Test_isabsolutepath()
+  call assert_false(isabsolutepath(''))
+  call assert_false(isabsolutepath('.'))
+  call assert_false(isabsolutepath('../Foo'))
+  call assert_false(isabsolutepath('Foo/'))
+  if has('win32')
+    call assert_true(isabsolutepath('A:\'))
+    call assert_true(isabsolutepath('A:\Foo'))
+    call assert_true(isabsolutepath('A:/Foo'))
+    call assert_false(isabsolutepath('A:Foo'))
+    call assert_false(isabsolutepath('\Windows'))
+    call assert_true(isabsolutepath('\\Server2\Share\Test\Foo.txt'))
+  else
+    call assert_true(isabsolutepath('/'))
+    call assert_true(isabsolutepath('/usr/share/'))
+  endif
+endfunc
+
+" Test for exepath()
+func Test_exepath()
+  if has('win32')
+    call assert_notequal(exepath('cmd'), '')
+
+    let oldNoDefaultCurrentDirectoryInExePath = $NoDefaultCurrentDirectoryInExePath
+    call writefile(['@echo off', 'echo Evil'], 'vim-test-evil.bat')
+    let $NoDefaultCurrentDirectoryInExePath = ''
+    call assert_notequal(exepath("vim-test-evil.bat"), '')
+    let $NoDefaultCurrentDirectoryInExePath = '1'
+    call assert_equal(exepath("vim-test-evil.bat"), '')
+    let $NoDefaultCurrentDirectoryInExePath = oldNoDefaultCurrentDirectoryInExePath
+    call delete('vim-test-evil.bat')
+  else
+    call assert_notequal(exepath('sh'), '')
+  endif
+endfunc
 
 " Test for virtcol()
 func Test_virtcol()
@@ -3549,7 +3673,7 @@ func Test_string_reverse()
     call assert_equal('', reverse(v:_null_string))
     for [s1, s2] in [['', ''], ['a', 'a'], ['ab', 'ba'], ['abc', 'cba'],
                    \ ['abcd', 'dcba'], ['«-«-»-»', '»-»-«-«'],
-                   \ ['🇦', '🇦'], ['🇦🇧', '🇧🇦'], ['🇦🇧🇨', '🇨🇧🇦'],
+                   \ ['🇦', '🇦'], ['🇦🇧', '🇦🇧'], ['🇦🇧🇨', '🇨🇦🇧'],
                    \ ['🇦«🇧-🇨»🇩', '🇩»🇨-🇧«🇦']]
       call assert_equal(s2, reverse(s1))
     endfor
@@ -3657,6 +3781,8 @@ func Test_slice()
     call assert_equal('', 'ὰ̳β̳́γ̳̂δ̳̃ε̳̄ζ̳̅'->slice(1, -6))
   END
   call CheckLegacyAndVim9Success(lines)
+
+  call assert_equal(0, slice(v:true, 1))
 endfunc
 
 " vim: shiftwidth=2 sts=2 expandtab

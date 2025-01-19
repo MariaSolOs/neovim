@@ -1,7 +1,9 @@
-local t = require('test.functional.testutil')()
+local t = require('test.testutil')
+local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
-local clear = t.clear
-local feed = t.feed
+
+local clear = n.clear
+local feed = n.feed
 local write_file = t.write_file
 
 before_each(clear)
@@ -16,7 +18,6 @@ describe(':source!', function()
     ]]
     )
     local screen = Screen.new(75, 6)
-    screen:attach()
     feed(':source! Xscript.vim\n')
     screen:expect([[
       ^                                                                           |

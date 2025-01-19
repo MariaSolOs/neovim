@@ -1,14 +1,15 @@
-local t = require('test.functional.testutil')()
+local t = require('test.testutil')
+local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
 
-local clear = t.clear
+local clear = n.clear
 local eq = t.eq
-local api = t.api
-local fn = t.fn
-local exec = t.exec
-local feed = t.feed
+local api = n.api
+local fn = n.fn
+local exec = n.exec
+local feed = n.feed
 local assert_log = t.assert_log
-local check_close = t.check_close
+local check_close = n.check_close
 local is_os = t.is_os
 
 local testlog = 'Xtest_autocmd_oldtest_log'
@@ -101,10 +102,9 @@ describe('oldtests', function()
   -- oldtest: Test_delete_ml_get_errors()
   it('no ml_get error with TextChanged autocommand and delete', function()
     local screen = Screen.new(75, 10)
-    screen:attach()
-    screen:set_default_attr_ids({
-      [1] = { background = Screen.colors.Cyan },
-    })
+    screen:add_extra_attr_ids {
+      [100] = { background = Screen.colors.Cyan1 },
+    }
     exec([[
       set noshowcmd noruler scrolloff=0
       source test/old/testdir/samples/matchparen.vim
@@ -119,9 +119,9 @@ describe('oldtests', function()
               }                                                                  |
               const auto &themes = _forPeer->owner().cloudThemes();              |
               const auto theme = themes.themeForEmoji(themeEmoji);               |
-              if (!theme) {1:{}                                                      |
+              if (!theme) {100:{}                                                      |
                       return nonCustom;                                          |
-              {1:^}}                                                                  |
+              {100:^}}                                                                  |
       353 fewer lines                                                            |
     ]],
     }

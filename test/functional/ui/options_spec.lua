@@ -1,10 +1,12 @@
-local t = require('test.functional.testutil')()
+local t = require('test.testutil')
+local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
-local clear = t.clear
-local command = t.command
+
+local clear = n.clear
+local command = n.command
 local eq = t.eq
 local shallowcopy = t.shallowcopy
-local eval = t.eval
+local eval = n.eval
 
 describe('UI receives option updates', function()
   local screen
@@ -42,8 +44,7 @@ describe('UI receives option updates', function()
     clear_opts.args_rm = clear_opts.args_rm or {}
     table.insert(clear_opts.args_rm or {}, '--cmd')
     clear(clear_opts)
-    screen = Screen.new(20, 5)
-    screen:attach(screen_opts)
+    screen = Screen.new(20, 5, screen_opts)
     -- NB: UI test suite can be run in both "linegrid" and legacy grid mode.
     -- In both cases check that the received value is the one requested.
     defaults.ext_linegrid = screen._options.ext_linegrid or false
@@ -68,7 +69,6 @@ describe('UI receives option updates', function()
     function screen:_handle_mouse_off()
       table.insert(evs, 'mouse_off')
     end
-    screen:attach()
     screen:expect(function()
       eq({ 'mouse_on' }, evs)
     end)
@@ -213,24 +213,22 @@ describe('UI receives option updates', function()
 end)
 
 describe('UI can set terminal option', function()
-  local screen
   before_each(function()
     -- by default we implicitly "--cmd 'set bg=light'" which ruins everything
     clear { args_rm = { '--cmd' } }
-    screen = Screen.new(20, 5)
   end)
 
   it('term_name', function()
     eq('nvim', eval '&term')
 
-    screen:attach { term_name = 'xterm' }
+    local _ = Screen.new(20, 5, { term_name = 'xterm' })
     eq('xterm', eval '&term')
   end)
 
   it('term_colors', function()
     eq('256', eval '&t_Co')
 
-    screen:attach { term_colors = 8 }
+    local _ = Screen.new(20, 5, { term_colors = 8 })
     eq('8', eval '&t_Co')
   end)
 end)

@@ -1,7 +1,10 @@
-local t = require('test.functional.testutil')()
+local t = require('test.testutil')
+local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
-local api, clear, eq = t.api, t.clear, t.eq
-local eval, exec, feed = t.eval, t.exec, t.feed
+
+local api, clear, eq = n.api, n.clear, t.eq
+local eval, exec, feed = n.eval, n.exec, n.feed
+local exec_lua = n.exec_lua
 
 describe('Signs', function()
   local screen
@@ -9,21 +12,15 @@ describe('Signs', function()
   before_each(function()
     clear()
     screen = Screen.new()
-    screen:attach()
-    screen:set_default_attr_ids({
-      [0] = { bold = true, foreground = 255 },
-      [1] = { background = Screen.colors.Yellow },
-      [2] = { foreground = Screen.colors.DarkBlue, background = Screen.colors.Grey },
-      [3] = { background = Screen.colors.Gray90 },
-      [4] = { bold = true, reverse = true },
-      [5] = { reverse = true },
-      [6] = { foreground = Screen.colors.Brown },
-      [7] = { foreground = Screen.colors.DarkBlue, background = Screen.colors.LightGrey },
-      [8] = { foreground = Screen.colors.Grey100, background = Screen.colors.Red },
-      [9] = { bold = true, foreground = Screen.colors.Magenta },
-      [10] = { foreground = Screen.colors.Blue1 },
-      [11] = { bold = true, foreground = Screen.colors.SeaGreen4 },
-    })
+    screen:add_extra_attr_ids {
+      [100] = { bold = true, foreground = Screen.colors.Magenta1 },
+      [101] = { foreground = Screen.colors.DarkBlue, background = Screen.colors.Yellow1 },
+      [102] = { foreground = Screen.colors.Brown, background = Screen.colors.Yellow },
+      [103] = { background = Screen.colors.Yellow, reverse = true },
+      [104] = { reverse = true, foreground = Screen.colors.Grey100, background = Screen.colors.Red },
+      [105] = { bold = true, background = Screen.colors.Red1, foreground = Screen.colors.Gray100 },
+      [106] = { foreground = Screen.colors.Brown, reverse = true },
+    }
   end)
 
   describe(':sign place', function()
@@ -36,10 +33,10 @@ describe('Signs', function()
         sign place 2 line=2 name=piet2 buffer=1
       ]])
       screen:expect([[
-        {1:𐌢̀́̂̃̅̄𐌢̀́̂̃̅̄}a                                                  |
-        {1:𠜎̀́̂̃̄̅}b                                                  |
-        {2:  }^                                                   |
-        {0:~                                                    }|*10
+        {101:𐌢̀́̂̃̅̄𐌢̀́̂̃̅̄}a                                                  |
+        {101:𠜎̀́̂̃̄̅}b                                                  |
+        {7:  }^                                                   |
+        {1:~                                                    }|*10
                                                              |
       ]])
     end)
@@ -54,11 +51,11 @@ describe('Signs', function()
         sign place 3 line=1 name=pietx buffer=1
       ]])
       screen:expect([[
-        {1:>!}a                                                  |
-        {2:  }b                                                  |
-        {1:>>}c                                                  |
-        {2:  }^                                                   |
-        {0:~                                                    }|*9
+        {101:>!}a                                                  |
+        {7:  }b                                                  |
+        {101:>>}c                                                  |
+        {7:  }^                                                   |
+        {1:~                                                    }|*9
                                                              |
       ]])
     end)
@@ -71,7 +68,7 @@ describe('Signs', function()
         a                                                    |
         b                                                    |
         ^                                                     |
-        {0:~                                                    }|*10
+        {1:~                                                    }|*10
                                                              |
       ]])
     end)
@@ -88,18 +85,18 @@ describe('Signs', function()
         sign place 3 line=2 name=piet buffer=1
       ]])
       screen:expect([[
-        {2:  }{3:^a                                                  }|
-        {1:>>}b                                                  |
-        {2:  }c                                                  |
-        {2:  }                                                   |
-        {0:~                                                    }|*2
-        {4:[No Name] [+]                                        }|
-        {2:  }{3:a                                                  }|
-        {1:>>}b                                                  |
-        {2:  }c                                                  |
-        {2:  }                                                   |
-        {0:~                                                    }|
-        {5:[No Name] [+]                                        }|
+        {7:  }{21:^a                                                  }|
+        {101:>>}b                                                  |
+        {7:  }c                                                  |
+        {7:  }                                                   |
+        {1:~                                                    }|*2
+        {3:[No Name] [+]                                        }|
+        {7:  }{21:a                                                  }|
+        {101:>>}b                                                  |
+        {7:  }c                                                  |
+        {7:  }                                                   |
+        {1:~                                                    }|
+        {2:[No Name] [+]                                        }|
                                                              |
       ]])
     end)
@@ -119,16 +116,23 @@ describe('Signs', function()
         sign place 6 line=4 name=pietxx buffer=1
       ]])
       screen:expect([[
-        {1:>>}{6:  1 }a                                              |
-        {2:  }{6:  2 }{8:b                                              }|
-        {2:  }{7:  3 }c                                              |
-        {1:>>}{7:  4 }{8:^                                               }|
-        {0:~                                                    }|*9
+        {101:>>}{8:  1 }a                                              |
+        {7:  }{8:  2 }{9:b                                              }|
+        {7:  }{13:  3 }c                                              |
+        {101:>>}{13:  4 }{9:^                                               }|
+        {1:~                                                    }|*9
                                                              |
       ]])
       -- Check that 'statuscolumn' correctly applies numhl
       exec('set statuscolumn=%s%=%l\\ ')
-      screen:expect_unchanged()
+      screen:expect([[
+        {102:>>}{8:  1 }a                                              |
+        {7:  }{8:  2 }{9:b                                              }|
+        {7:  }{13:  3 }c                                              |
+        {101:>>}{13:  4 }{9:^                                               }|
+        {1:~                                                    }|*9
+                                                             |
+      ]])
     end)
 
     it('highlights the cursorline sign with culhl', function()
@@ -141,50 +145,58 @@ describe('Signs', function()
         set cursorline
       ]])
       screen:expect([[
-        {1:>>}a                                                  |
-        {1:>>}b                                                  |
-        {8:>>}{3:^c                                                  }|
-        {0:~                                                    }|*10
+        {101:>>}a                                                  |
+        {101:>>}b                                                  |
+        {9:>>}{21:^c                                                  }|
+        {1:~                                                    }|*10
                                                              |
       ]])
       feed('k')
       screen:expect([[
-        {1:>>}a                                                  |
-        {8:>>}{3:^b                                                  }|
-        {1:>>}c                                                  |
-        {0:~                                                    }|*10
+        {101:>>}a                                                  |
+        {9:>>}{21:^b                                                  }|
+        {101:>>}c                                                  |
+        {1:~                                                    }|*10
                                                              |
       ]])
       exec('set nocursorline')
       screen:expect([[
-        {1:>>}a                                                  |
-        {1:>>}^b                                                  |
-        {1:>>}c                                                  |
-        {0:~                                                    }|*10
+        {101:>>}a                                                  |
+        {101:>>}^b                                                  |
+        {101:>>}c                                                  |
+        {1:~                                                    }|*10
                                                              |
       ]])
       exec('set cursorline cursorlineopt=line')
       screen:expect([[
-        {1:>>}a                                                  |
-        {1:>>}{3:^b                                                  }|
-        {1:>>}c                                                  |
-        {0:~                                                    }|*10
+        {101:>>}a                                                  |
+        {101:>>}{21:^b                                                  }|
+        {101:>>}c                                                  |
+        {1:~                                                    }|*10
                                                              |
       ]])
       exec('set cursorlineopt=number')
       exec('hi! link SignColumn IncSearch')
       feed('Go<esc>2G')
       screen:expect([[
-        {1:>>}a                                                  |
-        {8:>>}^b                                                  |
-        {1:>>}c                                                  |
-        {5:  }                                                   |
-        {0:~                                                    }|*9
+        {103:>>}a                                                  |
+        {104:>>}^b                                                  |
+        {103:>>}c                                                  |
+        {2:  }                                                   |
+        {1:~                                                    }|*9
                                                              |
       ]])
+
       -- Check that 'statuscolumn' cursorline/signcolumn highlights are the same (#21726)
       exec('set statuscolumn=%s')
-      screen:expect_unchanged()
+      screen:expect([[
+        {102:>>}a                                                  |
+        {105:>>}^b                                                  |
+        {102:>>}c                                                  |
+        {106:  }                                                   |
+        {1:~                                                    }|*9
+                                                             |
+      ]])
     end)
 
     it('multiple signs #9295', function()
@@ -203,11 +215,11 @@ describe('Signs', function()
       -- of signs, the ones with the highest Ids are being picked,
       -- and presented by their sorted Id order.
       screen:expect([[
-        {2:    }{6:  1 }a                                            |
-        {2:    }{6:  2 }b                                            |
-        {1:>>}WW{6:  3 }c                                            |
-        {2:    }{6:  4 }^                                             |
-        {0:~                                                    }|*9
+        {7:    }{8:  1 }a                                            |
+        {7:    }{8:  2 }b                                            |
+        {7:WW}{101:>>}{8:  3 }c                                            |
+        {7:    }{8:  4 }^                                             |
+        {1:~                                                    }|*9
                                                              |
       ]])
       exec([[
@@ -218,42 +230,42 @@ describe('Signs', function()
         sign place 3 line=2 name=pietError buffer=1
       ]])
       screen:expect([[
-        {1:>>}{8:XX}{6:  1 }a                                            |
-        {8:XX}{1:>>}{6:  2 }b                                            |
-        {1:>>}WW{6:  3 }c                                            |
-        {2:    }{6:  4 }^                                             |
-        {0:~                                                    }|*9
+        {9:XX}{101:>>}{8:  1 }a                                            |
+        {101:>>}{9:XX}{8:  2 }b                                            |
+        {7:WW}{101:>>}{8:  3 }c                                            |
+        {7:    }{8:  4 }^                                             |
+        {1:~                                                    }|*9
                                                              |
       ]])
       -- With the default setting, we get the sign with the top id.
       exec('set signcolumn=yes:1')
       screen:expect([[
-        {8:XX}{6:  1 }a                                              |
-        {1:>>}{6:  2 }b                                              |
-        WW{6:  3 }c                                              |
-        {2:  }{6:  4 }^                                               |
-        {0:~                                                    }|*9
+        {9:XX}{8:  1 }a                                              |
+        {101:>>}{8:  2 }b                                              |
+        {7:WW}{8:  3 }c                                              |
+        {7:  }{8:  4 }^                                               |
+        {1:~                                                    }|*9
                                                              |
       ]])
       -- "auto:3" accommodates all the signs we defined so far.
       exec('set signcolumn=auto:3')
       local s3 = [[
-        {1:>>}{8:XX}{2:  }{6:  1 }a                                          |
-        {8:XX}{1:>>}{2:  }{6:  2 }b                                          |
-        {8:XX}{1:>>}WW{6:  3 }c                                          |
-        {2:      }{6:  4 }^                                           |
-        {0:~                                                    }|*9
+        {9:XX}{101:>>}{7:  }{8:  1 }a                                          |
+        {101:>>}{9:XX}{7:  }{8:  2 }b                                          |
+        {7:WW}{101:>>}{9:XX}{8:  3 }c                                          |
+        {7:      }{8:  4 }^                                           |
+        {1:~                                                    }|*9
                                                              |
       ]]
       screen:expect(s3)
       -- Check "yes:9".
       exec('set signcolumn=yes:9')
       screen:expect([[
-        {1:>>}{8:XX}{2:              }{6:  1 }a                              |
-        {8:XX}{1:>>}{2:              }{6:  2 }b                              |
-        {8:XX}{1:>>}WW{2:            }{6:  3 }c                              |
-        {2:                  }{6:  4 }^                               |
-        {0:~                                                    }|*9
+        {9:XX}{101:>>}{7:              }{8:  1 }a                              |
+        {101:>>}{9:XX}{7:              }{8:  2 }b                              |
+        {7:WW}{101:>>}{9:XX}{7:            }{8:  3 }c                              |
+        {7:                  }{8:  4 }^                               |
+        {1:~                                                    }|*9
                                                              |
       ]])
       -- Check "auto:N" larger than the maximum number of signs defined in
@@ -264,19 +276,19 @@ describe('Signs', function()
       exec('3move1')
       exec('2d')
       screen:expect([[
-        {1:>>}{8:XX}{6:  1 }a                                            |
-        {8:XX}{1:>>}{6:  2 }^b                                            |
-        {2:    }{6:  3 }                                             |
-        {0:~                                                    }|*10
+        {9:XX}{101:>>}{8:  1 }a                                            |
+        {101:>>}{9:XX}{8:  2 }^b                                            |
+        {7:    }{8:  3 }                                             |
+        {1:~                                                    }|*10
                                                              |
       ]])
       -- character deletion does not delete signs.
       feed('x')
       screen:expect([[
-        {1:>>}{8:XX}{6:  1 }a                                            |
-        {8:XX}{1:>>}{6:  2 }^                                             |
-        {2:    }{6:  3 }                                             |
-        {0:~                                                    }|*10
+        {9:XX}{101:>>}{8:  1 }a                                            |
+        {101:>>}{9:XX}{8:  2 }^                                             |
+        {7:    }{8:  3 }                                             |
+        {1:~                                                    }|*10
                                                              |
       ]])
     end)
@@ -287,21 +299,21 @@ describe('Signs', function()
       -- sign column should always accommodate at the minimum size
       exec('set signcolumn=auto:1-3')
       screen:expect([[
-        {2:  }{6:  1 }a                                              |
-        {2:  }{6:  2 }b                                              |
-        {2:  }{6:  3 }c                                              |
-        {2:  }{6:  4 }^                                               |
-        {0:~                                                    }|*9
+        {7:  }{8:  1 }a                                              |
+        {7:  }{8:  2 }b                                              |
+        {7:  }{8:  3 }c                                              |
+        {7:  }{8:  4 }^                                               |
+        {1:~                                                    }|*9
                                                              |
       ]])
       -- should support up to 8 signs at minimum
       exec('set signcolumn=auto:8-9')
       screen:expect([[
-        {2:                }{6:  1 }a                                |
-        {2:                }{6:  2 }b                                |
-        {2:                }{6:  3 }c                                |
-        {2:                }{6:  4 }^                                 |
-        {0:~                                                    }|*9
+        {7:                }{8:  1 }a                                |
+        {7:                }{8:  2 }b                                |
+        {7:                }{8:  3 }c                                |
+        {7:                }{8:  4 }^                                 |
+        {1:~                                                    }|*9
                                                              |
       ]])
       -- should keep the same sign size when signs are not exceeding
@@ -310,11 +322,11 @@ describe('Signs', function()
       exec('sign define pietSearch text=>> texthl=Search')
       exec('sign place 1 line=1 name=pietSearch buffer=1')
       screen:expect([[
-        {1:>>}{2:  }{6:  1 }a                                            |
-        {2:    }{6:  2 }b                                            |
-        {2:    }{6:  3 }c                                            |
-        {2:    }{6:  4 }^                                             |
-        {0:~                                                    }|*9
+        {101:>>}{7:  }{8:  1 }a                                            |
+        {7:    }{8:  2 }b                                            |
+        {7:    }{8:  3 }c                                            |
+        {7:    }{8:  4 }^                                             |
+        {1:~                                                    }|*9
                                                              |
       ]])
       -- should resize itself when signs are exceeding minimum but
@@ -325,11 +337,11 @@ describe('Signs', function()
         sign place 4 line=1 name=pietSearch buffer=1
       ]])
       screen:expect([[
-        {1:>>>>>>>>}{6:  1 }a                                        |
-        {2:        }{6:  2 }b                                        |
-        {2:        }{6:  3 }c                                        |
-        {2:        }{6:  4 }^                                         |
-        {0:~                                                    }|*9
+        {101:>>>>>>>>}{8:  1 }a                                        |
+        {7:        }{8:  2 }b                                        |
+        {7:        }{8:  3 }c                                        |
+        {7:        }{8:  4 }^                                         |
+        {1:~                                                    }|*9
                                                              |
       ]])
       -- should not increase size because sign with existing id is moved
@@ -337,11 +349,11 @@ describe('Signs', function()
       screen:expect_unchanged()
       exec('sign unplace 4')
       screen:expect([[
-        {1:>>>>>>}{6:  1 }a                                          |
-        {2:      }{6:  2 }b                                          |
-        {2:      }{6:  3 }c                                          |
-        {2:      }{6:  4 }^                                           |
-        {0:~                                                    }|*9
+        {101:>>>>>>}{8:  1 }a                                          |
+        {7:      }{8:  2 }b                                          |
+        {7:      }{8:  3 }c                                          |
+        {7:      }{8:  4 }^                                           |
+        {1:~                                                    }|*9
                                                              |
       ]])
       exec('sign place 4 line=1 name=pietSearch buffer=1')
@@ -354,11 +366,11 @@ describe('Signs', function()
         sign place 8 line=1 name=pietSearch buffer=1
       ]])
       screen:expect([[
-        {1:>>>>>>>>>>}{6:  1 }a                                      |
-        {2:          }{6:  2 }b                                      |
-        {2:          }{6:  3 }c                                      |
-        {2:          }{6:  4 }^                                       |
-        {0:~                                                    }|*9
+        {101:>>>>>>>>>>}{8:  1 }a                                      |
+        {7:          }{8:  2 }b                                      |
+        {7:          }{8:  3 }c                                      |
+        {7:          }{8:  4 }^                                       |
+        {1:~                                                    }|*9
                                                              |
       ]])
     end)
@@ -374,21 +386,21 @@ describe('Signs', function()
       ]])
       -- no signcolumn with only empty sign
       screen:expect([[
-        {6:  1 }a                                                |
-        {6:  2 }b                                                |
-        {6:  3 }c                                                |
-        {6:  4 }^                                                 |
-        {0:~                                                    }|*9
+        {8:  1 }a                                                |
+        {8:  2 }b                                                |
+        {8:  3 }c                                                |
+        {8:  4 }^                                                 |
+        {1:~                                                    }|*9
                                                              |
       ]])
       -- single column with 1 sign with text and one sign without
       exec('sign place 1 line=1 name=pietSearch buffer=1')
       screen:expect([[
-        {1:>>}{6:  1 }a                                              |
-        {2:  }{6:  2 }b                                              |
-        {2:  }{6:  3 }c                                              |
-        {2:  }{6:  4 }^                                               |
-        {0:~                                                    }|*9
+        {101:>>}{8:  1 }a                                              |
+        {7:  }{8:  2 }b                                              |
+        {7:  }{8:  3 }c                                              |
+        {7:  }{8:  4 }^                                               |
+        {1:~                                                    }|*9
                                                              |
       ]])
     end)
@@ -405,23 +417,23 @@ describe('Signs', function()
       -- line number should be drawn if sign has no text
       -- no signcolumn, line number for "a" is Search, for "b" is Error, for "c" is LineNr
       screen:expect([[
-        {1: >> }a                                                |
-        {8:  2 }b                                                |
-        {6:  3 }c                                                |
-        {6:  4 }^                                                 |
-        {0:~                                                    }|*9
+        {101: >> }a                                                |
+        {9:  2 }b                                                |
+        {8:  3 }c                                                |
+        {8:  4 }^                                                 |
+        {1:~                                                    }|*9
                                                              |
       ]])
       -- number column on wrapped part of a line should be empty
       feed('gg100aa<Esc>')
       screen:expect([[
-        {1: >> }aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|
-        {8:    }aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|
-        {8:    }aa^a                                              |
-        {8:  2 }b                                                |
-        {6:  3 }c                                                |
-        {6:  4 }                                                 |
-        {0:~                                                    }|*7
+        {101: >> }aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|
+        {9:    }aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|
+        {9:    }aa^a                                              |
+        {9:  2 }b                                                |
+        {8:  3 }c                                                |
+        {8:  4 }                                                 |
+        {1:~                                                    }|*7
                                                              |
       ]])
       api.nvim_buf_set_extmark(0, api.nvim_create_namespace('test'), 0, 0, {
@@ -431,14 +443,14 @@ describe('Signs', function()
       feed('<C-Y>')
       -- number column on virtual lines should be empty
       screen:expect([[
-        {6:    }VIRT LINES                                       |
-        {1: >> }aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|
-        {8:    }aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|
-        {8:    }aa^a                                              |
-        {8:  2 }b                                                |
-        {6:  3 }c                                                |
-        {6:  4 }                                                 |
-        {0:~                                                    }|*6
+        {8:    }VIRT LINES                                       |
+        {101: >> }aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|
+        {9:    }aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|
+        {9:    }aa^a                                              |
+        {9:  2 }b                                                |
+        {8:  3 }c                                                |
+        {8:  4 }                                                 |
+        {1:~                                                    }|*6
                                                              |
       ]])
     end)
@@ -448,21 +460,21 @@ describe('Signs', function()
       exec('sign place 100000 line=1 name=piet buffer=1')
       feed(':sign place<cr>')
       screen:expect([[
-        {1:>>}                                                   |
-        {0:~                                                    }|*6
-        {4:                                                     }|
+        {101:>>}                                                   |
+        {1:~                                                    }|*6
+        {3:                                                     }|
         :sign place                                          |
-        {9:--- Signs ---}                                        |
-        {10:Signs for [NULL]:}                                    |
+        {100:--- Signs ---}                                        |
+        {18:Signs for [NULL]:}                                    |
             line=1  id=100000  name=piet  priority=10        |
                                                              |
-        {11:Press ENTER or type command to continue}^              |
+        {6:Press ENTER or type command to continue}^              |
       ]])
 
       feed('<cr>')
       screen:expect([[
-        {1:>>}^                                                   |
-        {0:~                                                    }|*12
+        {101:>>}^                                                   |
+        {1:~                                                    }|*12
                                                              |
       ]])
     end)
@@ -476,11 +488,11 @@ describe('Signs', function()
     exec('2delete')
     exec('sign unplace 10001')
     screen:expect([[
-      {2:  }a                                                  |
-      {2:  }^c                                                  |
-      {2:  }d                                                  |
-      >>e                                                  |
-      {0:~                                                    }|*9
+      {7:  }a                                                  |
+      {7:  }^c                                                  |
+      {7:  }d                                                  |
+      {7:>>}e                                                  |
+      {1:~                                                    }|*9
                                                            |
     ]])
     exec('sign unplace 10002')
@@ -489,7 +501,7 @@ describe('Signs', function()
       ^c                                                    |
       d                                                    |
       e                                                    |
-      {0:~                                                    }|*9
+      {1:~                                                    }|*9
                                                            |
     ]])
   end)
@@ -502,13 +514,13 @@ describe('Signs', function()
     exec('copy .')
     exec('sign unplace 10001')
     screen:expect([[
-      {2:  }a                                                  |
-      {2:  }^a                                                  |
-      {2:  }b                                                  |
-      {2:  }c                                                  |
-      {2:  }d                                                  |
-      >>e                                                  |
-      {0:~                                                    }|*7
+      {7:  }a                                                  |
+      {7:  }^a                                                  |
+      {7:  }b                                                  |
+      {7:  }c                                                  |
+      {7:  }d                                                  |
+      {7:>>}e                                                  |
+      {1:~                                                    }|*7
                                                            |
     ]])
     exec('sign unplace 10002')
@@ -519,7 +531,7 @@ describe('Signs', function()
       c                                                    |
       d                                                    |
       e                                                    |
-      {0:~                                                    }|*7
+      {1:~                                                    }|*7
                                                            |
     ]])
   end)
@@ -534,9 +546,9 @@ describe('Signs', function()
       call sign_place(0, '', 'foo', bufnr(''), { 'lnum':2 })
     ]])
     screen:expect([[
-      {8:  1 }^line1                                            |
-      {8:  2 }line2                                            |
-      {6:  3 }line3                                            |
+      {9:  1 }^line1                                            |
+      {9:  2 }line2                                            |
+      {8:  3 }line3                                            |
                                                            |
     ]])
   end)
@@ -558,11 +570,11 @@ describe('Signs', function()
     exec('norm 2Gdd')
     exec('silent undo')
     screen:expect([[
-      {2:  }1                                                  |
-      S1^2                                                  |
-      {2:  }3                                                  |
-      {2:  }4                                                  |
-      {0:~                                                    }|*9
+      {7:  }1                                                  |
+      {7:S1}^2                                                  |
+      {7:  }3                                                  |
+      {7:  }4                                                  |
+      {1:~                                                    }|*9
                                                            |
     ]])
   end)
@@ -574,5 +586,115 @@ describe('Signs', function()
       call sign_undefine()
     ]])
     eq({}, eval('sign_getdefined()'))
+  end)
+
+  it('no crash when unplacing signs beyond end of buffer', function()
+    exec([[
+      sign define S1 text=S1
+      sign define S2 text=S2
+      sign place 1 line=8 name=S1
+      sign place 2 line=9 name=S2
+    ]])
+    -- Now placed at end of buffer
+    local s1 = [[
+      {7:S2}^                                                   |
+      {1:~                                                    }|*12
+                                                           |
+    ]]
+    screen:expect(s1)
+    -- Signcolumn tracking used to not count signs placed beyond end of buffer here
+    exec('set signcolumn=auto:9')
+    screen:expect([[
+      {7:S2S1}^                                                 |
+      {1:~                                                    }|*12
+                                                           |
+    ]])
+    -- Unplacing the sign does not crash by decrementing tracked signs below zero
+    exec('sign unplace 1')
+    screen:expect(s1)
+  end)
+
+  it('signcolumn width is set immediately after splitting window #30547', function()
+    local infos = exec_lua([[
+      vim.o.number = true
+      vim.o.signcolumn = 'yes'
+      vim.cmd.wincmd('v')
+      return vim.fn.getwininfo()
+    ]])
+    eq(6, infos[1].textoff)
+    eq(6, infos[2].textoff)
+  end)
+
+  it('auto width updated in all windows after sign placed in on_win #31438', function()
+    exec_lua([[
+      vim.cmd.call('setline(1, range(1, 500))')
+      vim.cmd('wincmd s | wincmd v | wincmd j | wincmd v')
+
+      _G.log, _G.needs_clear = {}, false
+      local ns_id, mark_id = vim.api.nvim_create_namespace('test'), nil
+
+      -- Add decoration which possibly clears all extmarks and adds one on line 499
+      local on_win = function(_, winid, bufnr, toprow, botrow)
+        if _G.needs_clear then
+          vim.api.nvim_buf_clear_namespace(bufnr, ns_id, 0, -1)
+          _G.needs_clear = false
+        end
+
+        if toprow < 499 and 499 <= botrow then
+          mark_id = vim.api.nvim_buf_set_extmark(bufnr, ns_id, 499, 0, { id = mark_id, sign_text = '!', invalidate = true })
+        end
+      end
+      vim.api.nvim_set_decoration_provider(ns_id, { on_win = on_win })
+    ]])
+    screen:expect([[
+      1                         │1                         |
+      2                         │2                         |
+      3                         │3                         |
+      4                         │4                         |
+      5                         │5                         |
+      6                         │6                         |
+      {2:[No Name] [+]              [No Name] [+]             }|
+      ^1                         │1                         |
+      2                         │2                         |
+      3                         │3                         |
+      4                         │4                         |
+      5                         │5                         |
+      {3:[No Name] [+]              }{2:[No Name] [+]             }|
+                                                           |
+    ]])
+    feed('G')
+    screen:expect([[
+      {7:  }1                       │{7:  }1                       |
+      {7:  }2                       │{7:  }2                       |
+      {7:  }3                       │{7:  }3                       |
+      {7:  }4                       │{7:  }4                       |
+      {7:  }5                       │{7:  }5                       |
+      {7:  }6                       │{7:  }6                       |
+      {2:[No Name] [+]              [No Name] [+]             }|
+      {7:  }496                     │{7:  }1                       |
+      {7:  }497                     │{7:  }2                       |
+      {7:  }498                     │{7:  }3                       |
+      {7:  }499                     │{7:  }4                       |
+      {7:! }^500                     │{7:  }5                       |
+      {3:[No Name] [+]              }{2:[No Name] [+]             }|
+                                                           |
+    ]])
+    feed(':lua log, needs_clear = {}, true<CR>')
+    screen:expect([[
+      {7:  }1                       │{7:  }1                       |
+      {7:  }2                       │{7:  }2                       |
+      {7:  }3                       │{7:  }3                       |
+      {7:  }4                       │{7:  }4                       |
+      {7:  }5                       │{7:  }5                       |
+      {7:  }6                       │{7:  }6                       |
+      {2:[No Name] [+]              [No Name] [+]             }|
+      {7:  }496                     │{7:  }1                       |
+      {7:  }497                     │{7:  }2                       |
+      {7:  }498                     │{7:  }3                       |
+      {7:  }499                     │{7:  }4                       |
+      {7:! }^500                     │{7:  }5                       |
+      {3:[No Name] [+]              }{2:[No Name] [+]             }|
+      :lua log, needs_clear = {}, true                     |
+    ]])
   end)
 end)

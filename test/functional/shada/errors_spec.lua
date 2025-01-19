@@ -1,8 +1,9 @@
 -- ShaDa errors handling support
-local t = require('test.functional.testutil')()
-local nvim_command, eq, exc_exec = t.command, t.eq, t.exc_exec
-
+local t = require('test.testutil')
+local n = require('test.functional.testnvim')()
 local t_shada = require('test.functional.shada.testutil')
+
+local nvim_command, eq, exc_exec = n.command, t.eq, n.exc_exec
 local reset, clear, get_shada_rw = t_shada.reset, t_shada.clear, t_shada.get_shada_rw
 
 local wshada, sdrcmd, shada_fname, clean = get_shada_rw('Xtest-functional-shada-errors.shada')
@@ -27,7 +28,7 @@ describe('ShaDa error handling', function()
   it('fails on zero', function()
     wshada('\000')
     eq(
-      'Vim(rshada):E576: Error while reading ShaDa file: expected positive integer at position 0, but got nothing',
+      'Vim(rshada):E576: Error while reading ShaDa file: expected positive integer at position 1, but got nothing',
       exc_exec(sdrcmd())
     )
   end)
@@ -57,7 +58,7 @@ describe('ShaDa error handling', function()
   it('fails on search pattern item with zero length', function()
     wshada('\002\000\000')
     eq(
-      'Vim(rshada):E576: Failed to parse ShaDa file: incomplete msgpack string at position 3',
+      'Vim(rshada):E575: Error while reading ShaDa file: search pattern entry at position 0 is not a dict',
       exc_exec(sdrcmd())
     )
   end)
@@ -88,18 +89,10 @@ describe('ShaDa error handling', function()
 
   it('fails on search pattern item with invalid byte', function()
     -- 195 (== 0xC1) cannot start any valid messagepack entry (the only byte
-    -- that cannot do this). Specifically unpack_template.h contains
-    --
-    --     //case 0xc1:  // string
-    --     //  again_terminal_trail(NEXT_CS(p), p+1);
-    --
-    -- (literally: commented out code) which means that in place of this code
-    -- `goto _failed` is used from default: case. I do not know any other way to
-    -- get MSGPACK_UNPACK_PARSE_ERROR and not MSGPACK_UNPACK_CONTINUE or
-    -- MSGPACK_UNPACK_EXTRA_BYTES.
+    -- that cannot do this)
     wshada('\002\000\001\193')
     eq(
-      'Vim(rshada):E576: Failed to parse ShaDa file due to a msgpack parser error at position 3',
+      'Vim(rshada):E575: Error while reading ShaDa file: search pattern entry at position 0 is not a dict',
       exc_exec(sdrcmd())
     )
   end)
@@ -107,7 +100,7 @@ describe('ShaDa error handling', function()
   it('fails on search pattern item with incomplete map', function()
     wshada('\002\000\001\129')
     eq(
-      'Vim(rshada):E576: Failed to parse ShaDa file: incomplete msgpack string at position 3',
+      'Vim(rshada):E575: Error while reading ShaDa file: search pattern entry at position 0 has key value which is not a string',
       exc_exec(sdrcmd())
     )
   end)
@@ -123,7 +116,7 @@ describe('ShaDa error handling', function()
   it('fails on search pattern with extra bytes', function()
     wshada('\002\000\002\128\000')
     eq(
-      'Vim(rshada):E576: Failed to parse ShaDa file: extra bytes in msgpack string at position 3',
+      'Vim(rshada):E575: Error while reading ShaDa file: search pattern entry at position 0 has no pattern',
       exc_exec(sdrcmd())
     )
   end)
@@ -131,16 +124,7 @@ describe('ShaDa error handling', function()
   it('fails on search pattern item with NIL value', function()
     wshada('\002\000\001\192')
     eq(
-      'Vim(rshada):E575: Error while reading ShaDa file: search pattern entry at position 0 is not a dictionary',
-      exc_exec(sdrcmd())
-    )
-  end)
-
-  -- sp entry is here because it causes an allocation.
-  it('fails on search pattern item with BIN key', function()
-    wshada('\002\000\014\131\162sp\196\001a\162sX\192\196\000\000')
-    eq(
-      'Vim(rshada):E575: Error while reading ShaDa file: search pattern entry at position 0 has key which is not a string',
+      'Vim(rshada):E575: Error while reading ShaDa file: search pattern entry at position 0 is not a dict',
       exc_exec(sdrcmd())
     )
   end)
@@ -234,35 +218,16 @@ describe('ShaDa error handling', function()
     )
   end)
 
-  it('fails on search pattern item with STR pat key value', function()
-    wshada('\002\000\011\130\162sX\192\162sp\162sp')
-    eq(
-      'Vim(rshada):E575: Error while reading ShaDa file: search pattern entry at position 0 has sp key value which is not a binary',
-      exc_exec(sdrcmd())
-    )
-  end)
-
   for _, v in ipairs({
     { name = 'global mark', mpack = '\007' },
     { name = 'jump', mpack = '\008' },
     { name = 'local mark', mpack = '\010' },
     { name = 'change', mpack = '\011' },
   }) do
-    local is_mark_test = ({ ['global mark'] = true, ['local mark'] = true })[v.name]
-
     it('fails on ' .. v.name .. ' item with NIL value', function()
       wshada(v.mpack .. '\000\001\192')
       eq(
-        'Vim(rshada):E575: Error while reading ShaDa file: mark entry at position 0 is not a dictionary',
-        exc_exec(sdrcmd())
-      )
-    end)
-
-    -- f entry is here because it causes an allocation.
-    it('fails on ' .. v.name .. ' item with BIN key', function()
-      wshada(v.mpack .. '\000\013\131\161f\196\001/\162mX\192\196\000\000')
-      eq(
-        'Vim(rshada):E575: Error while reading ShaDa file: mark entry at position 0 has key which is not a string',
+        'Vim(rshada):E575: Error while reading ShaDa file: mark entry at position 0 is not a dict',
         exc_exec(sdrcmd())
       )
     end)
@@ -311,9 +276,7 @@ describe('ShaDa error handling', function()
     it('fails on ' .. v.name .. ' item with STR n key value', function()
       wshada(v.mpack .. '\000\011\130\162mX\192\161n\163spa')
       eq(
-        is_mark_test
-            and 'Vim(rshada):E575: Error while reading ShaDa file: mark entry at position 0 has n key value which is not an unsigned integer'
-          or 'Vim(rshada):E575: Error while reading ShaDa file: mark entry at position 0 has n key which is only valid for local and global mark entries',
+        'Vim(rshada):E575: Error while reading ShaDa file: mark entry at position 0 has n key value which is not an integer',
         exc_exec(sdrcmd())
       )
     end)
@@ -333,29 +296,12 @@ describe('ShaDa error handling', function()
         exc_exec(sdrcmd())
       )
     end)
-
-    it('fails on ' .. v.name .. ' item with STR f key value', function()
-      wshada(v.mpack .. '\000\010\130\162mX\192\161f\162sp')
-      eq(
-        'Vim(rshada):E575: Error while reading ShaDa file: mark entry at position 0 has f key value which is not a binary',
-        exc_exec(sdrcmd())
-      )
-    end)
   end
 
   it('fails on register item with NIL value', function()
     wshada('\005\000\001\192')
     eq(
-      'Vim(rshada):E575: Error while reading ShaDa file: register entry at position 0 is not a dictionary',
-      exc_exec(sdrcmd())
-    )
-  end)
-
-  -- rc entry is here because it causes an allocation
-  it('fails on register item with BIN key', function()
-    wshada('\005\000\015\131\162rc\145\196\001a\162rX\192\196\000\000')
-    eq(
-      'Vim(rshada):E575: Error while reading ShaDa file: register entry at position 0 has key which is not a string',
+      'Vim(rshada):E575: Error while reading ShaDa file: register entry at position 0 is not a dict',
       exc_exec(sdrcmd())
     )
   end)
@@ -372,7 +318,7 @@ describe('ShaDa error handling', function()
   it('fails on register item with NIL rt key value', function()
     wshada('\005\000\009\130\162rX\192\162rt\192')
     eq(
-      'Vim(rshada):E575: Error while reading ShaDa file: register entry at position 0 has rt key value which is not an unsigned integer',
+      'Vim(rshada):E575: Error while reading ShaDa file: register entry at position 0 has rt key value which is not an integer',
       exc_exec(sdrcmd())
     )
   end)
@@ -380,7 +326,7 @@ describe('ShaDa error handling', function()
   it('fails on register item with NIL rw key value', function()
     wshada('\005\000\009\130\162rX\192\162rw\192')
     eq(
-      'Vim(rshada):E575: Error while reading ShaDa file: register entry at position 0 has rw key value which is not an unsigned integer',
+      'Vim(rshada):E575: Error while reading ShaDa file: register entry at position 0 has rw key value which is not an integer',
       exc_exec(sdrcmd())
     )
   end)
@@ -396,7 +342,7 @@ describe('ShaDa error handling', function()
   it('fails on register item with empty rc key value', function()
     wshada('\005\000\009\130\162rX\192\162rc\144')
     eq(
-      'Vim(rshada):E575: Error while reading ShaDa file: register entry at position 0 has rc key with empty array',
+      'Vim(rshada):E575: Error while reading ShaDa file: register entry at position 0 has rc key with missing or empty array',
       exc_exec(sdrcmd())
     )
   end)
@@ -412,7 +358,7 @@ describe('ShaDa error handling', function()
   it('fails on register item without rc array', function()
     wshada('\005\000\009\129\162rX\146\196\001a\192')
     eq(
-      'Vim(rshada):E575: Error while reading ShaDa file: register entry at position 0 has missing rc array',
+      'Vim(rshada):E575: Error while reading ShaDa file: register entry at position 0 has rc key with missing or empty array',
       exc_exec(sdrcmd())
     )
   end)
@@ -420,7 +366,7 @@ describe('ShaDa error handling', function()
   it('fails on history item with NIL value', function()
     wshada('\004\000\001\192')
     eq(
-      'Vim(rshada):E575: Error while reading ShaDa file: history entry at position 0 is not an array',
+      'Vim(rshada):E575: Error while reading ShaDa file: history entry at position 0 is not an array with enough elements',
       exc_exec(sdrcmd())
     )
   end)
@@ -428,7 +374,7 @@ describe('ShaDa error handling', function()
   it('fails on history item with empty value', function()
     wshada('\004\000\001\144')
     eq(
-      'Vim(rshada):E575: Error while reading ShaDa file: history entry at position 0 does not have enough elements',
+      'Vim(rshada):E575: Error while reading ShaDa file: history entry at position 0 is not an array with enough elements',
       exc_exec(sdrcmd())
     )
   end)
@@ -436,7 +382,7 @@ describe('ShaDa error handling', function()
   it('fails on history item with single element value', function()
     wshada('\004\000\002\145\000')
     eq(
-      'Vim(rshada):E575: Error while reading ShaDa file: history entry at position 0 does not have enough elements',
+      'Vim(rshada):E575: Error while reading ShaDa file: history entry at position 0 is not an array with enough elements',
       exc_exec(sdrcmd())
     )
   end)
@@ -484,7 +430,7 @@ describe('ShaDa error handling', function()
   it('fails on variable item with NIL value', function()
     wshada('\006\000\001\192')
     eq(
-      'Vim(rshada):E575: Error while reading ShaDa file: variable entry at position 0 is not an array',
+      'Vim(rshada):E575: Error while reading ShaDa file: variable entry at position 0 is not an array with enough elements',
       exc_exec(sdrcmd())
     )
   end)
@@ -492,7 +438,7 @@ describe('ShaDa error handling', function()
   it('fails on variable item with empty value', function()
     wshada('\006\000\001\144')
     eq(
-      'Vim(rshada):E575: Error while reading ShaDa file: variable entry at position 0 does not have enough elements',
+      'Vim(rshada):E575: Error while reading ShaDa file: variable entry at position 0 is not an array with enough elements',
       exc_exec(sdrcmd())
     )
   end)
@@ -500,7 +446,7 @@ describe('ShaDa error handling', function()
   it('fails on variable item with single element value', function()
     wshada('\006\000\002\145\000')
     eq(
-      'Vim(rshada):E575: Error while reading ShaDa file: variable entry at position 0 does not have enough elements',
+      'Vim(rshada):E575: Error while reading ShaDa file: variable entry at position 0 is not an array with enough elements',
       exc_exec(sdrcmd())
     )
   end)
@@ -524,7 +470,7 @@ describe('ShaDa error handling', function()
   it('fails on replacement item with NIL value', function()
     wshada('\003\000\001\192')
     eq(
-      'Vim(rshada):E575: Error while reading ShaDa file: sub string entry at position 0 is not an array',
+      'Vim(rshada):E575: Error while reading ShaDa file: sub string entry at position 0 is not an array with enough elements',
       exc_exec(sdrcmd())
     )
   end)
@@ -532,7 +478,7 @@ describe('ShaDa error handling', function()
   it('fails on replacement item with empty value', function()
     wshada('\003\000\001\144')
     eq(
-      'Vim(rshada):E575: Error while reading ShaDa file: sub string entry at position 0 does not have enough elements',
+      'Vim(rshada):E575: Error while reading ShaDa file: sub string entry at position 0 is not an array with enough elements',
       exc_exec(sdrcmd())
     )
   end)
@@ -558,7 +504,7 @@ describe('ShaDa error handling', function()
     nvim_command('set shada+=%')
     wshada('\009\000\008\146\129\161f\196\001/\192')
     eq(
-      'Vim(rshada):E575: Error while reading ShaDa file: buffer list at position 0 contains entry that is not a dictionary',
+      'Vim(rshada):E575: Error while reading ShaDa file: buffer list at position 0 contains entry that is not a dict',
       exc_exec(sdrcmd())
     )
   end)
@@ -576,7 +522,7 @@ describe('ShaDa error handling', function()
     nvim_command('set shada+=%')
     wshada('\009\000\017\146\129\161f\196\001/\130\161f\196\002/a\161l\192')
     eq(
-      'Vim(rshada):E575: Error while reading ShaDa file: buffer list entry entry at position 0 has l key value which is not an integer',
+      'Vim(rshada):E575: Error while reading ShaDa file: buffer list at position 0 contains entry that has l key value which is not an integer',
       exc_exec(sdrcmd())
     )
   end)
@@ -612,7 +558,7 @@ describe('ShaDa error handling', function()
     nvim_command('set shada+=%')
     wshada('\009\000\017\146\129\161f\196\001/\130\161f\196\002/a\161c\192')
     eq(
-      'Vim(rshada):E575: Error while reading ShaDa file: buffer list entry entry at position 0 has c key value which is not an integer',
+      'Vim(rshada):E575: Error while reading ShaDa file: buffer list at position 0 contains entry that has c key value which is not an integer',
       exc_exec(sdrcmd())
     )
   end)

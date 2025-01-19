@@ -1,14 +1,16 @@
-local t = require('test.functional.testutil')()
-local clear = t.clear
+local t = require('test.testutil')
+local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
-local eq, eval = t.eq, t.eval
-local command = t.command
-local exec_capture = t.exec_capture
-local api = t.api
-local fn = t.fn
+
+local clear = n.clear
+local eq, eval = t.eq, n.eval
+local command = n.command
+local exec_capture = n.exec_capture
+local api = n.api
+local fn = n.fn
 local pcall_err = t.pcall_err
 local ok = t.ok
-local assert_alive = t.assert_alive
+local assert_alive = n.assert_alive
 
 describe('API: highlight', function()
   clear()
@@ -305,6 +307,15 @@ describe('API: set highlight', function()
     })
     eq({ undercurl = true }, api.nvim_get_hl_by_name('Test_hl', false))
     eq({ underdotted = true }, api.nvim_get_hl_by_name('Test_hl', true))
+  end)
+
+  it('can set all underline cterm attributes #31385', function()
+    local ns = get_ns()
+    local attrs = { 'underline', 'undercurl', 'underdouble', 'underdotted', 'underdashed' }
+    for _, attr in ipairs(attrs) do
+      api.nvim_set_hl(ns, 'Test_' .. attr, { cterm = { [attr] = true } })
+      eq({ [attr] = true }, api.nvim_get_hl_by_name('Test_' .. attr, false))
+    end
   end)
 
   it('can set a highlight in the global namespace', function()
@@ -706,6 +717,20 @@ describe('API: set/get highlight namespace', function()
     eq(-1, api.nvim_get_hl_ns({ winid = 0 }))
     local ns = api.nvim_create_namespace('')
     api.nvim_win_set_hl_ns(0, ns)
+    eq(ns, api.nvim_get_hl_ns({ winid = 0 }))
+  end)
+
+  it('setting namespace takes priority over &winhighlight', function()
+    command('set winhighlight=Visual:Search')
+    n.insert('foobar')
+    local ns = api.nvim_create_namespace('')
+    api.nvim_win_set_hl_ns(0, ns)
+    eq(ns, api.nvim_get_hl_ns({ winid = 0 }))
+    command('enew') -- switching buffer keeps namespace #30904
+    eq(ns, api.nvim_get_hl_ns({ winid = 0 }))
+    command('set winhighlight=')
+    eq(ns, api.nvim_get_hl_ns({ winid = 0 }))
+    command('set winhighlight=Visual:Search')
     eq(ns, api.nvim_get_hl_ns({ winid = 0 }))
   end)
 end)

@@ -1,15 +1,16 @@
-local t = require('test.functional.testutil')()
+local t = require('test.testutil')
+local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
 
-local clear = t.clear
-local command = t.command
+local clear = n.clear
+local command = n.command
 local dedent = t.dedent
 local eq = t.eq
-local fn = t.fn
-local feed = t.feed
-local exec_capture = t.exec_capture
+local fn = n.fn
+local feed = n.feed
+local exec_capture = n.exec_capture
 local write_file = t.write_file
-local api = t.api
+local api = n.api
 
 describe('jumplist', function()
   local fname1 = 'Xtest-functional-normal-jump'
@@ -55,7 +56,6 @@ describe('jumplist', function()
     write_file(fname2, 'baz')
 
     local screen = Screen.new(5, 25)
-    screen:attach()
     command('set number')
     command('edit ' .. fname1)
     feed('35gg')
@@ -193,7 +193,7 @@ describe("jumpoptions=stack behaves like 'tagstack'", function()
   end)
 end)
 
-describe('buffer deletion', function()
+describe('buffer deletion with jumpoptions+=clean', function()
   local base_file = 'Xtest-functional-buffer-deletion'
   local file1 = base_file .. '1'
   local file2 = base_file .. '2'
@@ -224,6 +224,12 @@ describe('buffer deletion', function()
     command('edit ' .. file1)
     command('edit ' .. file2)
     command('edit ' .. file3)
+  end)
+
+  after_each(function()
+    os.remove(file1)
+    os.remove(file2)
+    os.remove(file3)
   end)
 
   it('deletes jump list entries when the current buffer is deleted', function()
@@ -318,6 +324,44 @@ describe('buffer deletion', function()
   end)
 end)
 
+describe('buffer deletion with jumpoptions-=clean', function()
+  local base_file = 'Xtest-functional-buffer-deletion'
+  local file1 = base_file .. '1'
+  local file2 = base_file .. '2'
+  local base_content = 'text'
+  local content1 = base_content .. '1'
+  local content2 = base_content .. '2'
+
+  before_each(function()
+    clear()
+    command('clearjumps')
+    command('set jumpoptions-=clean')
+
+    write_file(file1, content1, false, false)
+    write_file(file2, content2, false, false)
+
+    command('edit ' .. file1)
+    command('edit ' .. file2)
+  end)
+
+  after_each(function()
+    os.remove(file1)
+    os.remove(file2)
+  end)
+
+  it('Ctrl-O reopens previous buffer with :bunload or :bdelete #28968', function()
+    eq(file2, fn.bufname(''))
+    command('bunload')
+    eq(file1, fn.bufname(''))
+    feed('<C-O>')
+    eq(file2, fn.bufname(''))
+    command('bdelete')
+    eq(file1, fn.bufname(''))
+    feed('<C-O>')
+    eq(file2, fn.bufname(''))
+  end)
+end)
+
 describe('jumpoptions=view', function()
   local file1 = 'Xtestfile-functional-editor-jumps'
   local file2 = 'Xtestfile-functional-editor-jumps-2'
@@ -341,7 +385,6 @@ describe('jumpoptions=view', function()
 
   it('restores the view', function()
     local screen = Screen.new(5, 8)
-    screen:attach()
     command('edit ' .. file1)
     feed('12Gztj')
     feed('gg<C-o>')
@@ -359,7 +402,6 @@ describe('jumpoptions=view', function()
 
   it('restores the view across files', function()
     local screen = Screen.new(5, 5)
-    screen:attach()
     command('args ' .. file1 .. ' ' .. file2)
     feed('12Gzt')
     command('next')
@@ -383,7 +425,6 @@ describe('jumpoptions=view', function()
 
   it('restores the view across files with <C-^>', function()
     local screen = Screen.new(5, 5)
-    screen:attach()
     command('args ' .. file1 .. ' ' .. file2)
     feed('12Gzt')
     command('next')
@@ -407,7 +448,6 @@ describe('jumpoptions=view', function()
 
   it("falls back to standard behavior when view can't be recovered", function()
     local screen = Screen.new(5, 8)
-    screen:attach()
     command('edit ' .. file1)
     feed('7GzbG')
     api.nvim_buf_set_lines(0, 0, 2, true, {})
@@ -432,7 +472,6 @@ describe('jumpoptions=view', function()
 
   it('falls back to standard behavior for a mark without a view', function()
     local screen = Screen.new(5, 8)
-    screen:attach()
     command('edit ' .. file1)
     feed('10ggzzvwy')
     screen:expect([[

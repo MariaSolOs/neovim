@@ -1,17 +1,18 @@
-local t = require('test.functional.testutil')()
+local t = require('test.testutil')
+local n = require('test.functional.testnvim')()
 
 local NIL = vim.NIL
-local clear = t.clear
-local command = t.command
+local clear = n.clear
+local command = n.command
 local eq = t.eq
-local api = t.api
+local api = n.api
 local matches = t.matches
-local source = t.source
+local source = n.source
 local pcall_err = t.pcall_err
-local exec_lua = t.exec_lua
-local assert_alive = t.assert_alive
-local feed = t.feed
-local fn = t.fn
+local exec_lua = n.exec_lua
+local assert_alive = n.assert_alive
+local feed = n.feed
+local fn = n.fn
 
 describe('nvim_get_commands', function()
   local cmd_dict = {
@@ -650,6 +651,11 @@ describe('nvim_create_user_command', function()
     api.nvim_set_current_buf(bufnr)
     command('Hello')
     assert_alive()
+    eq(
+      'Invalid buffer id: 1234',
+      pcall_err(api.nvim_buf_create_user_command, 1234, 'Hello', '', {})
+    )
+    assert_alive()
   end)
 
   it('can use a Lua complete function', function()
@@ -770,5 +776,9 @@ describe('nvim_del_user_command', function()
     command('Hello')
     api.nvim_buf_del_user_command(0, 'Hello')
     matches('Not an editor command: Hello', pcall_err(command, 'Hello'))
+    eq('Invalid command (not found): Hello', pcall_err(api.nvim_buf_del_user_command, 0, 'Hello'))
+    eq('Invalid command (not found): Bye', pcall_err(api.nvim_buf_del_user_command, 0, 'Bye'))
+    eq('Invalid buffer id: 1234', pcall_err(api.nvim_buf_del_user_command, 1234, 'Hello'))
+    assert_alive()
   end)
 end)

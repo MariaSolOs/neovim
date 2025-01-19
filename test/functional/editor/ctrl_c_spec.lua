@@ -1,8 +1,10 @@
-local t = require('test.functional.testutil')()
+local t = require('test.testutil')
+local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
-local clear, feed, source = t.clear, t.feed, t.source
-local command = t.command
-local poke_eventloop = t.poke_eventloop
+
+local clear, feed, source = n.clear, n.feed, n.source
+local command = n.command
+local poke_eventloop = n.poke_eventloop
 local sleep = vim.uv.sleep
 
 describe('CTRL-C (mapped)', function()
@@ -11,7 +13,6 @@ describe('CTRL-C (mapped)', function()
   before_each(function()
     clear()
     screen = Screen.new(52, 6)
-    screen:attach()
   end)
 
   it('interrupts :global', function()

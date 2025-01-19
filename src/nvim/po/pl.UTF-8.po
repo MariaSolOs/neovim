@@ -380,8 +380,8 @@ msgid " Omni completion (^O^N^P)"
 msgstr " Omni uzupełnianie (^O^N^P)"
 
 #: ../edit.c:96
-msgid " Spelling suggestion (s^N^P)"
-msgstr "Propozycja pisowni (^L^N^P)"
+msgid " Spelling suggestion (^S^N^P)"
+msgstr "Propozycja pisowni (^S^N^P)"
 
 #: ../edit.c:97
 msgid " Keyword Local completion (^N^P)"
@@ -1207,8 +1207,8 @@ msgstr "E146: Wzorce regularne nie mogą być rozgraniczane literami"
 
 #: ../ex_cmds.c:3964
 #, c-format
-msgid "replace with %s (y/n/a/q/l/^E/^Y)?"
-msgstr "zamień na %s (y/n/a/q/l/^E/^Y)?"
+msgid "replace with %s? (y)es/(n)o/(a)ll/(q)uit/(l)ast/scroll up(^E)/down(^Y)"
+msgstr "zamień na %s? (y)es/(n)o/(a)ll/(q)uit/(l)ast/scroll up(^E)/down(^Y)"
 
 #: ../ex_cmds.c:4379
 msgid "(Interrupted) "
@@ -3946,8 +3946,8 @@ msgid "(2) An edit session for this file crashed.\n"
 msgstr "(2) Sesja edycji dla pliku załamała się.\n"
 
 #: ../memline.c:3247
-msgid "    If this is the case, use \":recover\" or \"vim -r "
-msgstr "    Jeśli tak, to użyj \":recover\" lub \"vim -r "
+msgid "    If this is the case, use \":recover\" or \"nvim -r "
+msgstr "    Jeśli tak, to użyj \":recover\" lub \"nvim -r "
 
 #: ../memline.c:3249
 msgid ""

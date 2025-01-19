@@ -1,14 +1,15 @@
-local t = require('test.functional.testutil')()
+local t = require('test.testutil')
+local n = require('test.functional.testnvim')()
 
-local clear = t.clear
-local command = t.command
+local clear = n.clear
+local command = n.command
 local eq = t.eq
-local eval = t.eval
-local request = t.request
+local eval = n.eval
+local request = n.request
 local is_os = t.is_os
 
 describe('autocmd DirChanged and DirChangedPre', function()
-  local curdir = vim.uv.cwd():gsub('\\', '/')
+  local curdir = t.fix_slashes(vim.uv.cwd())
   local dirs = {
     curdir .. '/Xtest-functional-autocmd-dirchanged.dir1',
     curdir .. '/Xtest-functional-autocmd-dirchanged.dir2',
@@ -27,7 +28,7 @@ describe('autocmd DirChanged and DirChangedPre', function()
   end)
   teardown(function()
     for _, dir in pairs(dirs) do
-      t.rmdir(dir)
+      n.rmdir(dir)
     end
   end)
 
@@ -350,11 +351,10 @@ describe('autocmd DirChanged and DirChangedPre', function()
     eq(2, eval('g:cdprecount'))
     eq(2, eval('g:cdcount'))
 
-    local status, err = pcall(function()
-      request('nvim_set_current_dir', '/doesnotexist')
-    end)
-    eq(false, status)
-    eq('Failed to change directory', string.match(err, ': (.*)'))
+    eq(
+      'Vim:E344: Can\'t find directory "/doesnotexist" in cdpath',
+      t.pcall_err(request, 'nvim_set_current_dir', '/doesnotexist')
+    )
     eq({ directory = '/doesnotexist', scope = 'global', changed_window = false }, eval('g:evpre'))
     eq(3, eval('g:cdprecount'))
     eq(2, eval('g:cdcount'))

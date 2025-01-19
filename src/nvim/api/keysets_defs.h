@@ -8,18 +8,19 @@ typedef struct {
 
 typedef struct {
   OptionalKeys is_set__context_;
-  Array types;
+  ArrayOf(String) types;
 } Dict(context);
 
 typedef struct {
   OptionalKeys is_set__set_decoration_provider_;
-  LuaRef on_start;
-  LuaRef on_buf;
-  LuaRef on_win;
-  LuaRef on_line;
-  LuaRef on_end;
-  LuaRef _on_hl_def;
-  LuaRef _on_spell_nav;
+  LuaRefOf(("start" _, Integer tick), *Boolean) on_start;
+  LuaRefOf(("buf" _, Integer bufnr, Integer tick)) on_buf;
+  LuaRefOf(("win" _, Integer winid, Integer bufnr, Integer toprow, Integer botrow),
+           *Boolean) on_win;
+  LuaRefOf(("line" _, Integer winid, Integer bufnr, Integer row), *Boolean) on_line;
+  LuaRefOf(("end" _, Integer tick)) on_end;
+  LuaRefOf(("hl_def" _)) _on_hl_def;
+  LuaRefOf(("spell_nav" _)) _on_spell_nav;
 } Dict(set_decoration_provider);
 
 typedef struct {
@@ -56,8 +57,6 @@ typedef struct {
   Boolean undo_restore;
   String url;
   Boolean scoped;
-
-  Integer _subpriority;
 } Dict(set_extmark);
 
 typedef struct {
@@ -105,7 +104,7 @@ typedef struct {
   Object nargs;
   Object preview;
   Object range;
-  Boolean register_;
+  Boolean register_ DictKey(register);
 } Dict(user_command);
 
 typedef struct {
@@ -118,9 +117,10 @@ typedef struct {
   String relative;
   String split;
   Window win;
-  Array bufpos;
+  ArrayOf(Integer) bufpos;
   Boolean external;
   Boolean focusable;
+  Boolean mouse;
   Boolean vertical;
   Integer zindex;
   Object border;
@@ -172,18 +172,18 @@ typedef struct {
   Boolean reverse;
   Boolean altfont;
   Boolean nocombine;
-  Boolean default_;
-  Object cterm;
-  Object foreground;
-  Object fg;
-  Object background;
-  Object bg;
-  Object ctermfg;
-  Object ctermbg;
-  Object special;
-  Object sp;
-  Object link;
-  Object global_link;
+  Boolean default_ DictKey(default);
+  Union(Integer, String) cterm;
+  Union(Integer, String) foreground;
+  Union(Integer, String) fg;
+  Union(Integer, String) background;
+  Union(Integer, String) bg;
+  Union(Integer, String) ctermfg;
+  Union(Integer, String) ctermbg;
+  Union(Integer, String) special;
+  Union(Integer, String) sp;
+  HLGroupID link;
+  HLGroupID global_link;
   Boolean fallback;
   Integer blend;
   Boolean fg_indexed;
@@ -231,9 +231,9 @@ typedef struct {
 typedef struct {
   OptionalKeys is_set__clear_autocmds_;
   Buffer buffer;
-  Object event;
-  Object group;
-  Object pattern;
+  Union(String, ArrayOf(String)) event;
+  Union(Integer, String) group;
+  Union(String, ArrayOf(String)) pattern;
 } Dict(clear_autocmds);
 
 typedef struct {
@@ -242,31 +242,32 @@ typedef struct {
   Object callback;
   String command;
   String desc;
-  Object group;
+  Union(Integer, String) group;
   Boolean nested;
   Boolean once;
-  Object pattern;
+  Union(String, ArrayOf(String)) pattern;
 } Dict(create_autocmd);
 
 typedef struct {
   OptionalKeys is_set__exec_autocmds_;
   Buffer buffer;
-  Object group;
+  Union(Integer, String) group;
   Boolean modeline;
-  Object pattern;
+  Union(String, ArrayOf(String)) pattern;
   Object data;
 } Dict(exec_autocmds);
 
 typedef struct {
   OptionalKeys is_set__get_autocmds_;
-  Object event;
-  Object group;
-  Object pattern;
-  Object buffer;
+  Union(String, ArrayOf(String)) event;
+  Union(Integer, String) group;
+  Union(String, ArrayOf(String)) pattern;
+  Union(Integer, ArrayOf(Integer)) buffer;
 } Dict(get_autocmds);
 
 typedef struct {
-  Object clear;
+  OptionalKeys is_set__create_augroup_;
+  Boolean clear;
 } Dict(create_augroup);
 
 typedef struct {
@@ -276,12 +277,12 @@ typedef struct {
   Integer count;
   String reg;
   Boolean bang;
-  Array args;
-  Dictionary magic;
-  Dictionary mods;
-  Object nargs;
-  Object addr;
-  Object nextcmd;
+  ArrayOf(String) args;
+  Dict magic;
+  Dict mods;
+  Union(Integer, String) nargs;
+  String addr;
+  String nextcmd;
 } Dict(cmd);
 
 typedef struct {
@@ -295,7 +296,7 @@ typedef struct {
   Boolean silent;
   Boolean emsg_silent;
   Boolean unsilent;
-  Dictionary filter;
+  Dict filter;
   Boolean sandbox;
   Boolean noautocmd;
   Boolean browse;
@@ -325,6 +326,7 @@ typedef struct {
 } Dict(cmd_opts);
 
 typedef struct {
+  Boolean err;
   Boolean verbose;
 } Dict(echo_opts);
 
@@ -334,11 +336,30 @@ typedef struct {
 
 typedef struct {
   OptionalKeys is_set__buf_attach_;
-  LuaRef on_lines;
-  LuaRef on_bytes;
-  LuaRef on_changedtick;
-  LuaRef on_detach;
-  LuaRef on_reload;
+  LuaRefOf(("lines" _,
+            Integer bufnr,
+            Integer changedtick,
+            Integer first,
+            Integer last_old,
+            Integer last_new,
+            Integer byte_count,
+            Integer *deleted_codepoints,
+            Integer *deleted_codeunits), *Boolean) on_lines;
+  LuaRefOf(("bytes" _,
+            Integer bufnr,
+            Integer changedtick,
+            Integer start_row,
+            Integer start_col,
+            Integer start_byte,
+            Integer old_end_row,
+            Integer old_end_col,
+            Integer old_end_byte,
+            Integer new_end_row,
+            Integer new_end_col,
+            Integer new_end_byte), *Boolean) on_bytes;
+  LuaRefOf(("changedtick" _, Integer bufnr, Integer changedtick)) on_changedtick;
+  LuaRefOf(("detach" _, Integer bufnr)) on_detach;
+  LuaRefOf(("reload" _, Integer bufnr)) on_reload;
   Boolean utf_sizes;
   Boolean preview;
 } Dict(buf_attach);
@@ -351,7 +372,7 @@ typedef struct {
 
 typedef struct {
   OptionalKeys is_set__open_term_;
-  LuaRef on_input;
+  LuaRefOf(("input" _, Integer term, Integer bufnr, any data)) on_input;
   Boolean force_crlf;
 } Dict(open_term);
 
@@ -362,12 +383,13 @@ typedef struct {
 
 typedef struct {
   OptionalKeys is_set__xdl_diff_;
-  LuaRef on_hunk;
+  LuaRefOf((Integer start_a, Integer count_a, Integer start_b, Integer count_b),
+           *Integer) on_hunk;
   String result_type;
   String algorithm;
   Integer ctxlen;
   Integer interhunkctxlen;
-  Object linematch;
+  Union(Boolean, Integer) linematch;
   Boolean ignore_whitespace;
   Boolean ignore_whitespace_change;
   Boolean ignore_whitespace_change_at_eol;
@@ -375,3 +397,60 @@ typedef struct {
   Boolean ignore_blank_lines;
   Boolean indent_heuristic;
 } Dict(xdl_diff);
+
+typedef struct {
+  OptionalKeys is_set__redraw_;
+  Boolean flush;
+  Boolean cursor;
+  Boolean valid;
+  Boolean statuscolumn;
+  Boolean statusline;
+  Boolean tabline;
+  Boolean winbar;
+  Array range;
+  Window win;
+  Buffer buf;
+} Dict(redraw);
+
+typedef struct {
+  OptionalKeys is_set__ns_opts_;
+  Array wins;
+} Dict(ns_opts);
+
+typedef struct {
+  OptionalKeys is_set___shada_search_pat_;
+  Boolean magic DictKey(sm);
+  Boolean smartcase DictKey(sc);
+  Boolean has_line_offset DictKey(sl);
+  Boolean place_cursor_at_end DictKey(se);
+  Boolean is_last_used DictKey(su);
+  Boolean is_substitute_pattern DictKey(ss);
+  Boolean highlighted DictKey(sh);
+  Boolean search_backward DictKey(sb);
+  Integer offset DictKey(so);
+  String pat DictKey(sp);
+} Dict(_shada_search_pat);
+
+typedef struct {
+  OptionalKeys is_set___shada_mark_;
+  Integer n;
+  Integer l;
+  Integer c;
+  String f;
+} Dict(_shada_mark);
+
+typedef struct {
+  OptionalKeys is_set___shada_register_;
+  StringArray rc;
+  Boolean ru;
+  Integer rt;
+  Integer n;
+  Integer rw;
+} Dict(_shada_register);
+
+typedef struct {
+  OptionalKeys is_set___shada_buflist_item_;
+  Integer l;
+  Integer c;
+  String f;
+} Dict(_shada_buflist_item);

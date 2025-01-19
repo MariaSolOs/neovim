@@ -1,3 +1,5 @@
+// Island of misfit toys.
+
 #include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
@@ -7,6 +9,7 @@
 #include "nvim/api/extmark.h"
 #include "nvim/api/keysets_defs.h"
 #include "nvim/api/private/defs.h"
+#include "nvim/api/private/dispatch.h"
 #include "nvim/api/private/helpers.h"
 #include "nvim/api/private/validate.h"
 #include "nvim/api/vimscript.h"
@@ -20,9 +23,11 @@
 #include "nvim/lua/executor.h"
 #include "nvim/memory.h"
 #include "nvim/memory_defs.h"
+#include "nvim/message.h"
 #include "nvim/option.h"
 #include "nvim/option_defs.h"
 #include "nvim/pos_defs.h"
+#include "nvim/strings.h"
 #include "nvim/types_defs.h"
 
 #ifdef INCLUDE_GENERATED_DECLARATIONS
@@ -167,7 +172,7 @@ Integer nvim_buf_set_virtual_text(Buffer buffer, Integer src_id, Integer line, A
   DecorInline decor = { .ext = true, .data.ext.vt = vt, .data.ext.sh_idx = DECOR_ID_INVALID };
 
   extmark_set(buf, ns_id, NULL, (int)line, 0, -1, -1, decor, 0, true,
-              false, false, false, false, NULL);
+              false, false, false, NULL);
   return src_id;
 }
 
@@ -180,11 +185,11 @@ Integer nvim_buf_set_virtual_text(Buffer buffer, Integer src_id, Integer line, A
 /// @param[out] err Error details, if any
 /// @return Highlight definition map
 /// @see nvim_get_hl_by_name
-Dictionary nvim_get_hl_by_id(Integer hl_id, Boolean rgb, Arena *arena, Error *err)
+Dict nvim_get_hl_by_id(Integer hl_id, Boolean rgb, Arena *arena, Error *err)
   FUNC_API_SINCE(3)
   FUNC_API_DEPRECATED_SINCE(9)
 {
-  Dictionary dic = ARRAY_DICT_INIT;
+  Dict dic = ARRAY_DICT_INIT;
   VALIDATE_INT((syn_get_final_id((int)hl_id) != 0), "highlight id", hl_id, {
     return dic;
   });
@@ -201,11 +206,11 @@ Dictionary nvim_get_hl_by_id(Integer hl_id, Boolean rgb, Arena *arena, Error *er
 /// @param[out] err Error details, if any
 /// @return Highlight definition map
 /// @see nvim_get_hl_by_id
-Dictionary nvim_get_hl_by_name(String name, Boolean rgb, Arena *arena, Error *err)
+Dict nvim_get_hl_by_name(String name, Boolean rgb, Arena *arena, Error *err)
   FUNC_API_SINCE(3)
   FUNC_API_DEPRECATED_SINCE(9)
 {
-  Dictionary result = ARRAY_DICT_INIT;
+  Dict result = ARRAY_DICT_INIT;
   int id = syn_name2id(name.data);
 
   VALIDATE_S((id != 0), "highlight name", name.data, {
@@ -512,7 +517,7 @@ static int64_t convert_index(int64_t index)
 /// @param          name Option name
 /// @param[out] err Error details, if any
 /// @return         Option Information
-Dictionary nvim_get_option_info(String name, Arena *arena, Error *err)
+Dict nvim_get_option_info(String name, Arena *arena, Error *err)
   FUNC_API_SINCE(7)
   FUNC_API_DEPRECATED_SINCE(11)
 {
@@ -530,7 +535,7 @@ void nvim_set_option(uint64_t channel_id, String name, Object value, Error *err)
   FUNC_API_SINCE(1)
   FUNC_API_DEPRECATED_SINCE(11)
 {
-  set_option_to(channel_id, NULL, kOptReqGlobal, name, value, err);
+  set_option_to(channel_id, NULL, kOptScopeGlobal, name, value, err);
 }
 
 /// Gets the global value of an option.
@@ -543,7 +548,7 @@ Object nvim_get_option(String name, Error *err)
   FUNC_API_SINCE(1)
   FUNC_API_DEPRECATED_SINCE(11)
 {
-  return get_option_from(NULL, kOptReqGlobal, name, err);
+  return get_option_from(NULL, kOptScopeGlobal, name, err);
 }
 
 /// Gets a buffer option value
@@ -563,7 +568,7 @@ Object nvim_buf_get_option(Buffer buffer, String name, Error *err)
     return (Object)OBJECT_INIT;
   }
 
-  return get_option_from(buf, kOptReqBuf, name, err);
+  return get_option_from(buf, kOptScopeBuf, name, err);
 }
 
 /// Sets a buffer option value. Passing `nil` as value deletes the option (only
@@ -585,7 +590,7 @@ void nvim_buf_set_option(uint64_t channel_id, Buffer buffer, String name, Object
     return;
   }
 
-  set_option_to(channel_id, buf, kOptReqBuf, name, value, err);
+  set_option_to(channel_id, buf, kOptScopeBuf, name, value, err);
 }
 
 /// Gets a window option value
@@ -605,7 +610,7 @@ Object nvim_win_get_option(Window window, String name, Error *err)
     return (Object)OBJECT_INIT;
   }
 
-  return get_option_from(win, kOptReqWin, name, err);
+  return get_option_from(win, kOptScopeWin, name, err);
 }
 
 /// Sets a window option value. Passing `nil` as value deletes the option (only
@@ -627,26 +632,36 @@ void nvim_win_set_option(uint64_t channel_id, Window window, String name, Object
     return;
   }
 
-  set_option_to(channel_id, win, kOptReqWin, name, value, err);
+  set_option_to(channel_id, win, kOptScopeWin, name, value, err);
 }
 
 /// Gets the value of a global or local (buffer, window) option.
 ///
 /// @param[in]   from       Pointer to buffer or window for local option value.
-/// @param       req_scope  Requested option scope. See OptReqScope in option.h.
+/// @param       scope      Option scope. See OptScope in option.h.
 /// @param       name       The option name.
 /// @param[out]  err        Details of an error that may have occurred.
 ///
 /// @return  the option value.
-static Object get_option_from(void *from, OptReqScope req_scope, String name, Error *err)
+static Object get_option_from(void *from, OptScope scope, String name, Error *err)
 {
   VALIDATE_S(name.size > 0, "option name", "<empty>", {
     return (Object)OBJECT_INIT;
   });
 
-  OptVal value = get_option_value_strict(find_option(name.data), req_scope, from, err);
-  if (ERROR_SET(err)) {
+  OptIndex opt_idx = find_option(name.data);
+  VALIDATE_S(opt_idx != kOptInvalid, "option name", name.data, {
     return (Object)OBJECT_INIT;
+  });
+
+  OptVal value = NIL_OPTVAL;
+
+  if (option_has_scope(opt_idx, scope)) {
+    value = get_option_value_for(opt_idx, scope == kOptScopeGlobal ? OPT_GLOBAL : OPT_LOCAL,
+                                 scope, from, err);
+    if (ERROR_SET(err)) {
+      return (Object)OBJECT_INIT;
+    }
   }
 
   VALIDATE_S(value.type != kOptValTypeNil, "option name", name.data, {
@@ -659,12 +674,12 @@ static Object get_option_from(void *from, OptReqScope req_scope, String name, Er
 /// Sets the value of a global or local (buffer, window) option.
 ///
 /// @param[in]   to         Pointer to buffer or window for local option value.
-/// @param       req_scope  Requested option scope. See OptReqScope in option.h.
+/// @param       scope      Option scope. See OptScope in option.h.
 /// @param       name       The option name.
 /// @param       value      New option value.
 /// @param[out]  err        Details of an error that may have occurred.
-static void set_option_to(uint64_t channel_id, void *to, OptReqScope req_scope, String name,
-                          Object value, Error *err)
+static void set_option_to(uint64_t channel_id, void *to, OptScope scope, String name, Object value,
+                          Error *err)
 {
   VALIDATE_S(name.size > 0, "option name", "<empty>", {
     return;
@@ -686,14 +701,219 @@ static void set_option_to(uint64_t channel_id, void *to, OptReqScope req_scope, 
     return;
   });
 
-  int attrs = get_option_attrs(opt_idx);
   // For global-win-local options -> setlocal
   // For        win-local options -> setglobal and setlocal (opt_flags == 0)
-  const int opt_flags = (req_scope == kOptReqWin && !(attrs & SOPT_GLOBAL))
-                        ? 0
-                        : (req_scope == kOptReqGlobal) ? OPT_GLOBAL : OPT_LOCAL;
+  const int opt_flags
+    = (scope == kOptScopeWin && !option_has_scope(opt_idx, kOptScopeGlobal))
+      ? 0
+      : ((scope == kOptScopeGlobal) ? OPT_GLOBAL : OPT_LOCAL);
 
   WITH_SCRIPT_CONTEXT(channel_id, {
-    set_option_value_for(name.data, opt_idx, optval, opt_flags, req_scope, to, err);
+    set_option_value_for(name.data, opt_idx, optval, opt_flags, scope, to, err);
   });
+}
+
+/// @deprecated Use nvim_exec_lua() instead.
+///
+/// Calls many API methods atomically.
+///
+/// This has two main usages:
+/// 1. To perform several requests from an async context atomically, i.e.
+///    without interleaving redraws, RPC requests from other clients, or user
+///    interactions (however API methods may trigger autocommands or event
+///    processing which have such side effects, e.g. |:sleep| may wake timers).
+/// 2. To minimize RPC overhead (roundtrips) of a sequence of many requests.
+///
+/// @param channel_id
+/// @param calls an array of calls, where each call is described by an array
+///              with two elements: the request name, and an array of arguments.
+/// @param[out] err Validation error details (malformed `calls` parameter),
+///             if any. Errors from batched calls are given in the return value.
+///
+/// @return Array of two elements. The first is an array of return
+/// values. The second is NIL if all calls succeeded. If a call resulted in
+/// an error, it is a three-element array with the zero-based index of the call
+/// which resulted in an error, the error type and the error message. If an
+/// error occurred, the values from all preceding calls will still be returned.
+Array nvim_call_atomic(uint64_t channel_id, Array calls, Arena *arena, Error *err)
+  FUNC_API_SINCE(1) FUNC_API_DEPRECATED_SINCE(12) FUNC_API_REMOTE_ONLY
+{
+  Array rv = arena_array(arena, 2);
+  Array results = arena_array(arena, calls.size);
+  Error nested_error = ERROR_INIT;
+
+  size_t i;  // also used for freeing the variables
+  for (i = 0; i < calls.size; i++) {
+    VALIDATE_T("'calls' item", kObjectTypeArray, calls.items[i].type, {
+      goto theend;
+    });
+    Array call = calls.items[i].data.array;
+    VALIDATE_EXP((call.size == 2), "'calls' item", "2-item Array", NULL, {
+      goto theend;
+    });
+    VALIDATE_T("name", kObjectTypeString, call.items[0].type, {
+      goto theend;
+    });
+    String name = call.items[0].data.string;
+    VALIDATE_T("call args", kObjectTypeArray, call.items[1].type, {
+      goto theend;
+    });
+    Array args = call.items[1].data.array;
+
+    MsgpackRpcRequestHandler handler =
+      msgpack_rpc_get_handler_for(name.data,
+                                  name.size,
+                                  &nested_error);
+
+    if (ERROR_SET(&nested_error)) {
+      break;
+    }
+
+    Object result = handler.fn(channel_id, args, arena, &nested_error);
+    if (ERROR_SET(&nested_error)) {
+      // error handled after loop
+      break;
+    }
+    // TODO(bfredl): wasteful copy. It could be avoided to encoding to msgpack
+    // directly here. But `result` might become invalid when next api function
+    // is called in the loop.
+    ADD_C(results, copy_object(result, arena));
+    if (handler.ret_alloc) {
+      api_free_object(result);
+    }
+  }
+
+  ADD_C(rv, ARRAY_OBJ(results));
+  if (ERROR_SET(&nested_error)) {
+    Array errval = arena_array(arena, 3);
+    ADD_C(errval, INTEGER_OBJ((Integer)i));
+    ADD_C(errval, INTEGER_OBJ(nested_error.type));
+    ADD_C(errval, STRING_OBJ(copy_string(cstr_as_string(nested_error.msg), arena)));
+    ADD_C(rv, ARRAY_OBJ(errval));
+  } else {
+    ADD_C(rv, NIL);
+  }
+
+theend:
+  api_clear_error(&nested_error);
+  return rv;
+}
+
+/// @deprecated
+///
+/// @param channel_id Channel id (passed automatically by the dispatcher)
+/// @param event      Event type string
+void nvim_subscribe(uint64_t channel_id, String event)
+// XXX: c_grammar.lua is order-sensitive.
+  FUNC_API_SINCE(1) FUNC_API_DEPRECATED_SINCE(13) FUNC_API_REMOTE_ONLY
+{
+  // Does nothing. `rpcnotify(0,…)` broadcasts to all channels, there are no "subscriptions".
+}
+
+/// @deprecated
+///
+/// @param channel_id Channel id (passed automatically by the dispatcher)
+/// @param event      Event type string
+void nvim_unsubscribe(uint64_t channel_id, String event)
+// XXX: c_grammar.lua is order-sensitive.
+  FUNC_API_SINCE(1) FUNC_API_DEPRECATED_SINCE(13) FUNC_API_REMOTE_ONLY
+{
+  // Does nothing. `rpcnotify(0,…)` broadcasts to all channels, there are no "subscriptions".
+}
+
+enum { LINE_BUFFER_MIN_SIZE = 4096, };
+
+/// Writes a message to vim output or error buffer. The string is split
+/// and flushed after each newline. Incomplete lines are kept for writing
+/// later.
+///
+/// @param message  Message to write
+/// @param to_err   true: message is an error (uses `emsg` instead of `msg`)
+/// @param writeln  Append a trailing newline
+static void write_msg(String message, bool to_err, bool writeln)
+{
+  static StringBuilder out_line_buf = KV_INITIAL_VALUE;
+  static StringBuilder err_line_buf = KV_INITIAL_VALUE;
+  StringBuilder *line_buf = to_err ? &err_line_buf : &out_line_buf;
+
+#define PUSH_CHAR(c) \
+  if (kv_max(*line_buf) == 0) { \
+    kv_resize(*line_buf, LINE_BUFFER_MIN_SIZE); \
+  } \
+  if (c == NL) { \
+    kv_push(*line_buf, NUL); \
+    if (to_err) { \
+      emsg(line_buf->items); \
+    } else { \
+      msg(line_buf->items, 0); \
+    } \
+    if (msg_silent == 0) { \
+      msg_didout = true; \
+    } \
+    kv_drop(*line_buf, kv_size(*line_buf)); \
+    kv_resize(*line_buf, LINE_BUFFER_MIN_SIZE); \
+  } else if (c == NUL) { \
+    kv_push(*line_buf, NL); \
+  } else { \
+    kv_push(*line_buf, c); \
+  }
+
+  no_wait_return++;
+  for (uint32_t i = 0; i < message.size; i++) {
+    if (got_int) {
+      break;
+    }
+    PUSH_CHAR(message.data[i]);
+  }
+  if (writeln) {
+    PUSH_CHAR(NL);
+  }
+  no_wait_return--;
+  msg_end();
+}
+
+/// @deprecated
+///
+/// @param str Message
+void nvim_out_write(String str)
+  FUNC_API_SINCE(1) FUNC_API_DEPRECATED_SINCE(13)
+{
+  write_msg(str, false, false);
+}
+
+/// @deprecated
+///
+/// @param str Message
+void nvim_err_write(String str)
+  FUNC_API_SINCE(1) FUNC_API_DEPRECATED_SINCE(13)
+{
+  write_msg(str, true, false);
+}
+
+/// @deprecated
+///
+/// @param str Message
+void nvim_err_writeln(String str)
+  FUNC_API_SINCE(1) FUNC_API_DEPRECATED_SINCE(13)
+{
+  write_msg(str, true, true);
+}
+
+/// @deprecated
+///
+/// Use `nvim_echo` or `nvim_exec_lua("vim.notify(...)", ...)` instead.
+///
+/// @param msg        Message to display to the user
+/// @param log_level  The log level
+/// @param opts       Reserved for future use.
+/// @param[out] err   Error details, if any
+Object nvim_notify(String msg, Integer log_level, Dict opts, Arena *arena, Error *err)
+  FUNC_API_SINCE(7) FUNC_API_DEPRECATED_SINCE(13)
+{
+  MAXSIZE_TEMP_ARRAY(args, 3);
+  ADD_C(args, STRING_OBJ(msg));
+  ADD_C(args, INTEGER_OBJ(log_level));
+  ADD_C(args, DICT_OBJ(opts));
+
+  return NLUA_EXEC_STATIC("return vim.notify(...)", args, kRetObject, arena, err);
 }

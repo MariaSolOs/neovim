@@ -15,6 +15,13 @@ func s:cleanup_buffers() abort
   endfor
 endfunc
 
+func CleanUpTestAuGroup()
+  augroup testing
+    au!
+  augroup END
+  augroup! testing
+endfunc
+
 func Test_vim_did_enter()
   call assert_false(v:vim_did_enter)
 
@@ -81,9 +88,9 @@ if has('timers')
     " CursorHoldI event.
     let g:triggered = 0
     au CursorHoldI * let g:triggered += 1
-    set updatetime=500
-    call job_start(has('win32') ? 'cmd /c echo:' : 'echo',
-          \ {'exit_cb': {-> timer_start(1000, 'ExitInsertMode')}})
+    set updatetime=100
+    call job_start(has('win32') ? 'cmd /D /c echo:' : 'echo',
+          \ {'exit_cb': {-> timer_start(200, 'ExitInsertMode')}})
     call feedkeys('a', 'x!')
     call assert_equal(1, g:triggered)
     unlet g:triggered
@@ -273,8 +280,8 @@ func Test_win_tab_autocmd()
   augroup testing
     au WinNew * call add(g:record, 'WinNew')
     au WinClosed * call add(g:record, 'WinClosed')
-    au WinEnter * call add(g:record, 'WinEnter') 
-    au WinLeave * call add(g:record, 'WinLeave') 
+    au WinEnter * call add(g:record, 'WinEnter')
+    au WinLeave * call add(g:record, 'WinLeave')
     au TabNew * call add(g:record, 'TabNew')
     au TabClosed * call add(g:record, 'TabClosed')
     au TabEnter * call add(g:record, 'TabEnter')
@@ -1191,8 +1198,8 @@ func Test_OptionSet()
   call assert_equal(g:opt[0], g:opt[1])
 
   " 14: Setting option backspace through :let"
-  let g:options = [['backspace', '', '', '', 'eol,indent,start', 'global', 'set']]
-  let &bs = "eol,indent,start"
+  let g:options = [['backspace', 'indent,eol,start', 'indent,eol,start', 'indent,eol,start', '', 'global', 'set']]
+  let &bs = ''
   call assert_equal([], g:options)
   call assert_equal(g:opt[0], g:opt[1])
 
@@ -1996,7 +2003,10 @@ func Test_Cmdline()
   au! CmdlineLeave
 
   let save_shellslash = &shellslash
-  set noshellslash
+  " Nvim doesn't allow setting value of a hidden option to non-default value
+  if exists('+shellslash')
+    set noshellslash
+  endif
   au! CmdlineEnter / let g:entered = expand('<afile>')
   au! CmdlineLeave / let g:left = expand('<afile>')
   let g:entered = 0
@@ -2010,6 +2020,38 @@ func Test_Cmdline()
   au! CmdlineEnter
   au! CmdlineLeave
   let &shellslash = save_shellslash
+
+  au! CursorMovedC : let g:pos += [getcmdpos()]
+  let g:pos = []
+  call feedkeys(":foo bar baz\<C-W>\<C-W>\<C-W>\<Esc>", 'xt')
+  call assert_equal([2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 9, 5, 1], g:pos)
+  let g:pos = []
+  call feedkeys(":hello\<C-B>\<Esc>", 'xt')
+  call assert_equal([2, 3, 4, 5, 6, 1], g:pos)
+  let g:pos = []
+  call feedkeys(":hello\<C-U>\<Esc>", 'xt')
+  call assert_equal([2, 3, 4, 5, 6, 1], g:pos)
+  let g:pos = []
+  call feedkeys(":hello\<Left>\<C-R>=''\<CR>\<Left>\<Right>\<Esc>", 'xt')
+  call assert_equal([2, 3, 4, 5, 6, 5, 4, 5], g:pos)
+  let g:pos = []
+  call feedkeys(":12345678\<C-R>=setcmdpos(3)??''\<CR>\<Esc>", 'xt')
+  call assert_equal([2, 3, 4, 5, 6, 7, 8, 9, 3], g:pos)
+  let g:pos = []
+  call feedkeys(":12345678\<C-R>=setcmdpos(3)??''\<CR>\<Left>\<Esc>", 'xt')
+  call assert_equal([2, 3, 4, 5, 6, 7, 8, 9, 3, 2], g:pos)
+  au! CursorMovedC
+
+  " setcmdpos() is no-op inside an autocommand
+  au! CursorMovedC : let g:pos += [getcmdpos()] | call setcmdpos(1)
+  let g:pos = []
+  call feedkeys(":hello\<Left>\<Left>\<Esc>", 'xt')
+  call assert_equal([2, 3, 4, 5, 6, 5, 4], g:pos)
+  au! CursorMovedC
+
+  unlet g:entered
+  unlet g:left
+  unlet g:pos
 endfunc
 
 " Test for BufWritePre autocommand that deletes or unloads the buffer.
@@ -3738,7 +3780,7 @@ endfunc
 
 func Test_autocmd_split_dummy()
   " Autocommand trying to split a window containing a dummy buffer.
-  auto BufReadPre * exe "sbuf " .. expand("<abuf>") 
+  auto BufReadPre * exe "sbuf " .. expand("<abuf>")
   " Avoid the "W11" prompt
   au FileChangedShell * let v:fcs_choice = 'reload'
   func Xautocmd_changelist()
@@ -4103,6 +4145,64 @@ func Test_SwapExists_set_other_buf_modified()
   endif
 
   bwipe!
+endfunc
+
+func Test_BufEnter_botline()
+  set hidden
+  call writefile(range(10), 'Xxx1', 'D')
+  call writefile(range(20), 'Xxx2', 'D')
+  edit Xxx1
+  edit Xxx2
+  au BufEnter Xxx1 call assert_true(line('w$') > 1)
+  edit Xxx1
+
+  bwipe! Xxx1
+  bwipe! Xxx2
+  au! BufEnter Xxx1
+  set hidden&vim
+endfunc
+
+" This was using freed memory
+func Test_autocmd_BufWinLeave_with_vsp()
+  new
+  let fname = 'XXXBufWinLeaveUAF.txt'
+  let dummy = 'XXXDummy.txt'
+  call writefile([], fname)
+  call writefile([], dummy)
+  defer delete(fname)
+  defer delete(dummy)
+  exe "e " fname
+  vsp
+  augroup testing
+    exe "au BufWinLeave " .. fname .. " :e " dummy .. "| vsp " .. fname
+  augroup END
+  bw
+  call CleanUpTestAuGroup()
+  exe "bw! " .. dummy
+endfunc
+
+func Test_OptionSet_cmdheight()
+  set mouse=a laststatus=2
+  au OptionSet cmdheight :let &l:ch = v:option_new
+
+  resize -1
+  call assert_equal(2, &l:ch)
+  resize +1
+  call assert_equal(1, &l:ch)
+
+  call Ntest_setmouse(&lines - 1, 1)
+  call feedkeys("\<LeftMouse>", 'xt')
+  call Ntest_setmouse(&lines - 2, 1)
+  call feedkeys("\<LeftDrag>", 'xt')
+  call assert_equal(2, &l:ch)
+
+  tabnew | resize +1
+  call assert_equal(1, &l:ch)
+  tabfirst
+  call assert_equal(2, &l:ch)
+
+  tabonly
+  set cmdheight& mouse& laststatus&
 endfunc
 
 " vim: shiftwidth=2 sts=2 expandtab

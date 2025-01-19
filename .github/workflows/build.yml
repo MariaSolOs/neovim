@@ -21,13 +21,28 @@ env:
   INSTALL_PREFIX: ${{ github.workspace }}/nvim-install
 
 jobs:
+  wasmtime:
+    strategy:
+      fail-fast: false
+      matrix:
+        test: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.test }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - run: |
+          cmake -S cmake.deps --preset ci -D ENABLE_WASMTIME=ON
+          cmake --build .deps
+          cmake --preset ci -D ENABLE_WASMTIME=ON
+          cmake --build build
+
   old-cmake:
     name: Test oldest supported cmake
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
-      CMAKE_URL: 'https://cmake.org/files/v3.13/cmake-3.13.0-Linux-x86_64.sh'
-      CMAKE_VERSION: '3.13.0'
+      CMAKE_URL: 'https://cmake.org/files/v3.16/cmake-3.16.0-Linux-x86_64.sh'
+      CMAKE_VERSION: '3.16.0'
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
@@ -56,7 +71,7 @@ jobs:
 
   use-existing-src:
     name: Test USE_EXISTING_SRC_DIR=ON builds with no network access
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
@@ -74,7 +89,9 @@ jobs:
           for d in *; do (cd "$d"; rm -rf ./autom4te.cache; make clean || true; make distclean || true); done
 
       - name: Re-build bundled dependencies with no network access
-        run: unshare --map-root-user --net make deps DEPS_CMAKE_FLAGS=-DUSE_EXISTING_SRC_DIR=ON
+        run: |
+          sudo sysctl kernel.apparmor_restrict_unprivileged_userns=0
+          unshare --map-root-user --net make deps DEPS_CMAKE_FLAGS=-DUSE_EXISTING_SRC_DIR=ON
 
       - name: Build
         run: make CMAKE_FLAGS="-D CI_BUILD=ON"

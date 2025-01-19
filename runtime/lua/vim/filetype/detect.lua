@@ -34,6 +34,12 @@ local matchregex = vim.filetype._matchregex
 -- can be detected from the first five lines of the file.
 --- @type vim.filetype.mapfn
 function M.asm(path, bufnr)
+  -- tiasm uses `* commment`
+  local lines = table.concat(getlines(bufnr, 1, 10), '\n')
+  if findany(lines, { '^%*', '\n%*', 'Texas Instruments Incorporated' }) then
+    return 'tiasm'
+  end
+
   local syntax = vim.b[bufnr].asmsyntax
   if not syntax or syntax == '' then
     syntax = M.asm_syntax(path, bufnr)
@@ -181,6 +187,16 @@ function M.changelog(_, bufnr)
 end
 
 --- @type vim.filetype.mapfn
+function M.cl(_, bufnr)
+  local lines = table.concat(getlines(bufnr, 1, 4))
+  if lines:match('/%*') then
+    return 'opencl'
+  else
+    return 'lisp'
+  end
+end
+
+--- @type vim.filetype.mapfn
 function M.class(_, bufnr)
   -- Check if not a Java class (starts with '\xca\xfe\xba\xbe')
   if not getline(bufnr, 1):find('^\202\254\186\190') then
@@ -209,6 +225,24 @@ function M.cls(_, bufnr)
   return 'st'
 end
 
+--- *.cmd is close to a Batch file, but on OS/2 Rexx files and TI linker command files also use *.cmd.
+--- lnk: `/* comment */`, `// comment`, and `--linker-option=value`
+--- rexx: `/* comment */`, `-- comment`
+--- @type vim.filetype.mapfn
+function M.cmd(_, bufnr)
+  local lines = table.concat(getlines(bufnr, 1, 20))
+  if matchregex(lines, [[MEMORY\|SECTIONS\|\%(^\|\n\)--\S\|\%(^\|\n\)//]]) then
+    return 'lnk'
+  else
+    local line1 = getline(bufnr, 1)
+    if line1:find('^/%*') then
+      return 'rexx'
+    else
+      return 'dosbatch'
+    end
+  end
+end
+
 --- @type vim.filetype.mapfn
 function M.conf(path, bufnr)
   if fn.did_filetype() ~= 0 or path:find(vim.g.ft_ignore_pat) then
@@ -227,7 +261,8 @@ end
 --- Debian Control
 --- @type vim.filetype.mapfn
 function M.control(_, bufnr)
-  if getline(bufnr, 1):find('^Source:') then
+  local line1 = getline(bufnr, 1)
+  if line1 and findany(line1, { '^Source:', '^Package:' }) then
     return 'debcontrol'
   end
 end
@@ -450,7 +485,7 @@ local function modula2(bufnr)
 
   return 'modula2',
     function(b)
-      vim.api.nvim_buf_call(b, function()
+      vim._with({ buf = b }, function()
         fn['modula2#SetDialect'](dialect, extension)
       end)
     end
@@ -469,6 +504,41 @@ function M.def(_, bufnr)
     return vim.g.filetype_def
   end
   return 'def'
+end
+
+--- @type vim.filetype.mapfn
+function M.dsp(path, bufnr)
+  if vim.g.filetype_dsp then
+    return vim.g.filetype_dsp
+  end
+
+  -- Test the filename
+  local file_name = fn.fnamemodify(path, ':t')
+  if file_name:find('^[mM]akefile.*$') then
+    return 'make'
+  end
+
+  -- Test the file contents
+  for _, line in ipairs(getlines(bufnr, 1, 200)) do
+    if
+      findany(line, {
+        -- Check for comment style
+        [[#.*]],
+        -- Check for common lines
+        [[^.*Microsoft Developer Studio Project File.*$]],
+        [[^!MESSAGE This is not a valid makefile\..+$]],
+        -- Check for keywords
+        [[^!(IF,ELSEIF,ENDIF).*$]],
+        -- Check for common assignments
+        [[^SOURCE=.*$]],
+      })
+    then
+      return 'make'
+    end
+  end
+
+  -- Otherwise, assume we have a Faust file
+  return 'faust'
 end
 
 --- @type vim.filetype.mapfn
@@ -594,7 +664,7 @@ function M.frm(_, bufnr)
 end
 
 --- @type vim.filetype.mapfn
-function M.fvwm_1(_, _)
+function M.fvwm_v1(_, _)
   return 'fvwm', function(bufnr)
     vim.b[bufnr].fvwm_version = 1
   end
@@ -650,13 +720,58 @@ function M.header(_, bufnr)
   end
 end
 
+--- Recursively search for Hare source files in a directory and any
+--- subdirectories, up to a given depth.
+--- @param dir string
+--- @param depth number
+--- @return boolean
+local function is_hare_module(dir, depth)
+  depth = math.max(depth, 0)
+  for name, _ in vim.fs.dir(dir, { depth = depth + 1 }) do
+    if name:find('%.ha$') then
+      return true
+    end
+  end
+  return false
+end
+
+--- @type vim.filetype.mapfn
+function M.haredoc(path, _)
+  if vim.g.filetype_haredoc then
+    if is_hare_module(vim.fs.dirname(path), vim.g.haredoc_search_depth or 1) then
+      return 'haredoc'
+    end
+  end
+end
+
 --- @type vim.filetype.mapfn
 function M.html(_, bufnr)
-  for _, line in ipairs(getlines(bufnr, 1, 10)) do
-    if matchregex(line, [[\<DTD\s\+XHTML\s]]) then
+  -- Disabled for the reasons mentioned here:
+  -- https://github.com/vim/vim/pull/13594#issuecomment-1834465890
+  -- local filename = fn.fnamemodify(path, ':t')
+  -- if filename:find('%.component%.html$') then
+  --   return 'htmlangular'
+  -- end
+
+  for _, line in ipairs(getlines(bufnr, 1, 40)) do
+    if
+      matchregex(
+        line,
+        [[@\(if\|for\|defer\|switch\)\|\*\(ngIf\|ngFor\|ngSwitch\|ngTemplateOutlet\)\|ng-template\|ng-content]]
+      )
+    then
+      return 'htmlangular'
+    elseif matchregex(line, [[\<DTD\s\+XHTML\s]]) then
       return 'xhtml'
-    elseif matchregex(line, [[\c{%\s*\(extends\|block\|load\)\>\|{#\s\+]]) then
+    elseif
+      matchregex(
+        line,
+        [[\c{%\s*\(autoescape\|block\|comment\|csrf_token\|cycle\|debug\|extends\|filter\|firstof\|for\|if\|ifchanged\|include\|load\|lorem\|now\|query_string\|regroup\|resetcycle\|spaceless\|templatetag\|url\|verbatim\|widthratio\|with\)\>\|{#\s\+]]
+      )
+    then
       return 'htmldjango'
+    elseif findany(line, { '<extend', '<super>' }) then
+      return 'superhtml'
     end
   end
   return 'html'
@@ -789,6 +904,16 @@ function M.log(path, _)
 end
 
 --- @type vim.filetype.mapfn
+function M.ll(_, bufnr)
+  local first_line = getline(bufnr, 1)
+  if matchregex(first_line, [[;\|\<source_filename\>\|\<target\>]]) then
+    return 'llvm'
+  else
+    return 'lifelines'
+  end
+end
+
+--- @type vim.filetype.mapfn
 function M.lpc(_, bufnr)
   if vim.g.lpc_syntax_for_c then
     for _, line in ipairs(getlines(bufnr, 1, 12)) do
@@ -892,6 +1017,24 @@ local function m4(contents)
     -- AmigaDos scripts
     return 'amiga'
   end
+end
+
+--- Check if it is a Microsoft Makefile
+--- @type vim.filetype.mapfn
+function M.make(_, bufnr)
+  vim.b.make_microsoft = nil
+  for _, line in ipairs(getlines(bufnr, 1, 1000)) do
+    if matchregex(line, [[\c^\s*!\s*\(ifn\=\(def\)\=\|include\|message\|error\)\>]]) then
+      vim.b.make_microsoft = 1
+      break
+    elseif
+      matchregex(line, [[^ *ifn\=\(eq\|def\)\>]])
+      or findany(line, { '^ *[-s]?%s', '^ *%w+%s*[!?:+]=' })
+    then
+      break
+    end
+  end
+  return 'make'
 end
 
 --- @type vim.filetype.mapfn
@@ -1038,6 +1181,8 @@ function M.perl(path, bufnr)
   end
 end
 
+local prolog_patterns = { '^%s*:%-', '^%s*%%+%s', '^%s*%%+$', '^%s*/%*', '%.%s*$' }
+
 --- @type vim.filetype.mapfn
 function M.pl(_, bufnr)
   if vim.g.filetype_pl then
@@ -1046,11 +1191,7 @@ function M.pl(_, bufnr)
   -- Recognize Prolog by specific text in the first non-empty line;
   -- require a blank after the '%' because Perl uses "%list" and "%translate"
   local line = nextnonblank(bufnr, 1)
-  if
-    line and line:find(':%-')
-    or matchregex(line, [[\c\<prolog\>]])
-    or findany(line, { '^%s*%%+%s', '^%s*%%+$', '^%s*/%*' })
-  then
+  if line and matchregex(line, [[\c\<prolog\>]]) or findany(line, prolog_patterns) then
     return 'prolog'
   else
     return 'perl'
@@ -1141,22 +1282,20 @@ end
 --- Distinguish between "default", Prolog and Cproto prototype file.
 --- @type vim.filetype.mapfn
 function M.proto(_, bufnr)
-  -- Cproto files have a comment in the first line and a function prototype in
-  -- the second line, it always ends in ";".  Indent files may also have
-  -- comments, thus we can't match comments to see the difference.
-  -- IDL files can have a single ';' in the second line, require at least one
-  -- character before the ';'.
-  if getline(bufnr, 2):find('.;$') then
+  if getline(bufnr, 2):find('/%* Generated automatically %*/') then
+    return 'c'
+  elseif getline(bufnr, 2):find('.;$') then
+    -- Cproto files have a comment in the first line and a function prototype in
+    -- the second line, it always ends in ";".  Indent files may also have
+    -- comments, thus we can't match comments to see the difference.
+    -- IDL files can have a single ';' in the second line, require at least one
+    -- character before the ';'.
     return 'cpp'
   end
   -- Recognize Prolog by specific text in the first non-empty line;
   -- require a blank after the '%' because Perl uses "%list" and "%translate"
   local line = nextnonblank(bufnr, 1)
-  if
-    line and line:find(':%-')
-    or matchregex(line, [[\c\<prolog\>]])
-    or findany(line, { '^%s*%%+%s', '^%s*%%+$', '^%s*/%*' })
-  then
+  if line and matchregex(line, [[\c\<prolog\>]]) or findany(line, prolog_patterns) then
     return 'prolog'
   end
 end
@@ -1291,6 +1430,15 @@ function M.sig(_, bufnr)
   end
 end
 
+--- @type vim.filetype.mapfn
+function M.sa(_, bufnr)
+  local lines = table.concat(getlines(bufnr, 1, 4), '\n')
+  if findany(lines, { '^;', '\n;' }) then
+    return 'tiasm'
+  end
+  return 'sather'
+end
+
 -- This function checks the first 25 lines of file extension "sc" to resolve
 -- detection between scala and SuperCollider
 --- @type vim.filetype.mapfn
@@ -1329,7 +1477,7 @@ end
 function M.sgml(_, bufnr)
   local lines = table.concat(getlines(bufnr, 1, 5))
   if lines:find('linuxdoc') then
-    return 'smgllnx'
+    return 'sgmllnx'
   elseif lines:find('<!DOCTYPE.*DocBook') then
     return 'docbk',
       function(b)
@@ -1379,6 +1527,7 @@ local function sh(path, contents, name)
       vim.b[b].is_kornshell = nil
       vim.b[b].is_sh = nil
     end
+    return M.shell(path, contents, 'bash'), on_detect
     -- Ubuntu links sh to dash
   elseif matchregex(name, [[\<\(sh\|dash\)\>]]) then
     on_detect = function(b)
@@ -1531,7 +1680,7 @@ function M.tex(path, bufnr)
   end
 end
 
--- Determine if a *.tf file is TF mud client or terraform
+-- Determine if a *.tf file is TF (TinyFugue) mud client or terraform
 --- @type vim.filetype.mapfn
 function M.tf(_, bufnr)
   for _, line in ipairs(getlines(bufnr)) do
@@ -1757,6 +1906,7 @@ local patterns_hashbang = {
   ['^janet\\>'] = { 'janet', { vim_regex = true } },
   ['^dart\\>'] = { 'dart', { vim_regex = true } },
   ['^execlineb\\>'] = { 'execline', { vim_regex = true } },
+  ['^vim\\>'] = { 'vim', { vim_regex = true } },
 }
 
 ---@private
@@ -1813,7 +1963,7 @@ local function match_from_hashbang(contents, path, dispatch_extension)
   end
 
   for k, v in pairs(patterns_hashbang) do
-    local ft = type(v) == 'table' and v[1] or v
+    local ft = type(v) == 'table' and v[1] or v --[[@as string]]
     local opts = type(v) == 'table' and v[2] or {}
     if opts.vim_regex and matchregex(name, k) or name:find(k) then
       return ft
@@ -1985,6 +2135,7 @@ local function match_from_text(contents, path)
         return ft
       end
     else
+      --- @cast k string
       local opts = type(v) == 'table' and v[2] or {}
       if opts.start_lnum and opts.end_lnum then
         assert(

@@ -5,7 +5,6 @@
 #include <string.h>
 
 #include "klib/kvec.h"
-#include "nvim/func_attr.h"
 #include "nvim/types_defs.h"
 
 #define ARRAY_DICT_INIT KV_INITIAL_VALUE
@@ -18,8 +17,13 @@
 
 #ifdef INCLUDE_GENERATED_DECLARATIONS
 # define ArrayOf(...) Array
-# define DictionaryOf(...) Dictionary
+# define DictOf(...) Dict
 # define Dict(name) KeyDict_##name
+# define DictHash(name) KeyDict_##name##_get_field
+# define DictKey(name)
+# define LuaRefOf(...) LuaRef
+# define Union(...) Object
+# include "api/private/defs.h.inline.generated.h"
 #endif
 
 // Basic types
@@ -47,15 +51,13 @@ typedef enum {
 /// Internal call from Lua code
 #define LUA_INTERNAL_CALL (VIML_INTERNAL_CALL + 1)
 
-static inline bool is_internal_call(uint64_t channel_id)
-  REAL_FATTR_ALWAYS_INLINE REAL_FATTR_CONST;
-
 /// Check whether call is internal
 ///
 /// @param[in]  channel_id  Channel id.
 ///
 /// @return true if channel_id refers to internal channel.
 static inline bool is_internal_call(const uint64_t channel_id)
+  FUNC_ATTR_ALWAYS_INLINE FUNC_ATTR_CONST
 {
   return !!(channel_id & INTERNAL_CALL_MASK);
 }
@@ -88,7 +90,9 @@ typedef struct object Object;
 typedef kvec_t(Object) Array;
 
 typedef struct key_value_pair KeyValuePair;
-typedef kvec_t(KeyValuePair) Dictionary;
+typedef kvec_t(KeyValuePair) Dict;
+
+typedef kvec_t(String) StringArray;
 
 typedef enum {
   kObjectTypeNil = 0,
@@ -97,13 +101,17 @@ typedef enum {
   kObjectTypeFloat,
   kObjectTypeString,
   kObjectTypeArray,
-  kObjectTypeDictionary,
+  kObjectTypeDict,
   kObjectTypeLuaRef,
   // EXT types, cannot be split or reordered, see #EXT_OBJECT_TYPE_SHIFT
   kObjectTypeBuffer,
   kObjectTypeWindow,
   kObjectTypeTabpage,
 } ObjectType;
+
+typedef enum {
+  kUnpackTypeStringArray = -1,
+} UnpackType;
 
 /// Value by which objects represented as EXT type are shifted
 ///
@@ -121,7 +129,7 @@ struct object {
     Float floating;
     String string;
     Array array;
-    Dictionary dictionary;
+    Dict dict;
     LuaRef luaref;
   } data;
 };
@@ -142,7 +150,7 @@ typedef struct {
 typedef struct {
   char *str;
   size_t ptr_off;
-  ObjectType type;  // kObjectTypeNil == untyped
+  int type;  // ObjectType or UnpackType. kObjectTypeNil == untyped
   int opt_index;
   bool is_hlgroup;
 } KeySetLink;

@@ -5,9 +5,6 @@
 (capture
   (identifier) @type)
 
-(anonymous_node
-  (identifier) @string)
-
 (predicate
   name: (identifier) @function.call)
 
@@ -15,7 +12,7 @@
   name: (identifier) @variable)
 
 (field_definition
-  name: (identifier) @property)
+  name: (identifier) @variable.member)
 
 (negated_field
   "!" @operator
@@ -36,14 +33,17 @@
   ")"
 ] @punctuation.bracket
 
-":" @punctuation.delimiter
+[
+  ":"
+  "/"
+] @punctuation.delimiter
 
 [
   "@"
   "#"
 ] @punctuation.special
 
-"_" @constant
+"_" @character.special
 
 ((parameters
   (identifier) @number)
@@ -53,18 +53,27 @@
   .
   (comment)*
   .
-  (comment) @keyword.import)
+  (comment) @keyword.import @nospell)
   (#lua-match? @keyword.import "^;+ *inherits *:"))
 
 ((program
   .
   (comment)*
   .
-  (comment) @keyword.directive)
+  (comment) @keyword.directive @nospell)
   (#lua-match? @keyword.directive "^;+ *extends *$"))
 
-((comment) @keyword.directive
+((comment) @keyword.directive @nospell
   (#lua-match? @keyword.directive "^;+%s*format%-ignore%s*$"))
+
+((predicate
+  name: (identifier) @_name
+  parameters: (parameters
+    .
+    (capture)?
+    .
+    (identifier) @property))
+  (#eq? @_name "set"))
 
 ((predicate
   name: (identifier) @_name

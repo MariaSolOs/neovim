@@ -45,6 +45,7 @@ cursorentry_T shape_table[SHAPE_IDX_COUNT] = {
   { "more", 0, 0, 0,   0,   0,   0, 0, 0, "m", SHAPE_MOUSE },
   { "more_lastline", 0, 0, 0,   0,   0,   0, 0, 0, "ml", SHAPE_MOUSE },
   { "showmatch", 0, 0, 0, 100, 100, 100, 0, 0, "sm", SHAPE_CURSOR },
+  { "terminal", 0, 0, 0, 0, 0, 0, 0, 0, "t", SHAPE_CURSOR },
 };
 
 /// Converts cursor_shapes into an Array of Dictionaries
@@ -57,7 +58,7 @@ Array mode_style_array(Arena *arena)
 
   for (int i = 0; i < SHAPE_IDX_COUNT; i++) {
     cursorentry_T *cur = &shape_table[i];
-    Dictionary dic = arena_dict(arena, 3 + ((cur->used_for & SHAPE_CURSOR) ? 9 : 0));
+    Dict dic = arena_dict(arena, 3 + ((cur->used_for & SHAPE_CURSOR) ? 9 : 0));
     PUT_C(dic, "name", CSTR_AS_OBJ(cur->full_name));
     PUT_C(dic, "short_name", CSTR_AS_OBJ(cur->name));
     if (cur->used_for & SHAPE_MOUSE) {
@@ -86,7 +87,7 @@ Array mode_style_array(Arena *arena)
       PUT_C(dic, "attr_id_lm", INTEGER_OBJ(cur->id_lm ? syn_id2attr(cur->id_lm) : 0));
     }
 
-    ADD_C(all, DICTIONARY_OBJ(dic));
+    ADD_C(all, DICT_OBJ(dic));
   }
 
   return all;
@@ -321,6 +322,8 @@ int cursor_get_mode_idx(void)
 {
   if (State == MODE_SHOWMATCH) {
     return SHAPE_IDX_SM;
+  } else if (State == MODE_TERMINAL) {
+    return SHAPE_IDX_TERM;
   } else if (State & VREPLACE_FLAG) {
     return SHAPE_IDX_R;
   } else if (State & REPLACE_FLAG) {

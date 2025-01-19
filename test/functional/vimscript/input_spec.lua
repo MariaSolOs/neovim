@@ -1,14 +1,15 @@
-local t = require('test.functional.testutil')()
+local t = require('test.testutil')
+local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
 
 local eq = t.eq
-local feed = t.feed
-local api = t.api
-local clear = t.clear
-local source = t.source
-local command = t.command
-local exc_exec = t.exc_exec
-local async_meths = t.async_meths
+local feed = n.feed
+local api = n.api
+local clear = n.clear
+local source = n.source
+local command = n.command
+local exc_exec = n.exc_exec
+local async_meths = n.async_meths
 local NIL = vim.NIL
 
 local screen
@@ -16,7 +17,6 @@ local screen
 before_each(function()
   clear()
   screen = Screen.new(25, 5)
-  screen:attach()
   source([[
     hi Test ctermfg=Red guifg=Red term=bold
     function CustomCompl(...)
@@ -107,7 +107,7 @@ describe('input()', function()
       {T:1}^                        |
     ]])
   end)
-  it('allows unequal numeric values when using {opts} dictionary', function()
+  it('allows unequal numeric values when using {opts} dict', function()
     command('echohl Test')
     api.nvim_set_var('opts', { prompt = 1, default = 2, cancelreturn = 3 })
     feed([[:echo input(opts)<CR>]])
@@ -163,7 +163,7 @@ describe('input()', function()
       reset = true,
     }
   end)
-  it('allows omitting everything with dictionary argument', function()
+  it('allows omitting everything with dict argument', function()
     command('echohl Test')
     feed([[:call input({})<CR>]])
     screen:expect([[
@@ -289,7 +289,7 @@ describe('inputdialog()', function()
       {T:1}^                        |
     ]])
   end)
-  it('allows unequal numeric values when using {opts} dictionary', function()
+  it('allows unequal numeric values when using {opts} dict', function()
     command('echohl Test')
     api.nvim_set_var('opts', { prompt = 1, default = 2, cancelreturn = 3 })
     feed([[:echo input(opts)<CR>]])
@@ -345,7 +345,7 @@ describe('inputdialog()', function()
       reset = true,
     }
   end)
-  it('allows omitting everything with dictionary argument', function()
+  it('allows omitting everything with dict argument', function()
     command('echohl Test')
     feed(':echo inputdialog({})<CR>')
     screen:expect([[

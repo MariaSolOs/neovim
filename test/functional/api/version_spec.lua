@@ -1,6 +1,8 @@
-local t = require('test.functional.testutil')()
-local clear, fn, eq = t.clear, t.fn, t.eq
-local api = t.api
+local t = require('test.testutil')
+local n = require('test.functional.testnvim')()
+
+local clear, fn, eq = n.clear, n.fn, t.eq
+local api = n.api
 
 local function read_mpack_file(fname)
   local fd = io.open(fname, 'rb')
@@ -41,7 +43,7 @@ describe("api_info()['version']", function()
     eq(0, fn.has('nvim-' .. major .. '.' .. minor .. '.' .. (patch + 1)))
     eq(0, fn.has('nvim-' .. major .. '.' .. (minor + 1) .. '.' .. patch))
     eq(0, fn.has('nvim-' .. (major + 1) .. '.' .. minor .. '.' .. patch))
-    assert(build == nil or type(build) == 'string')
+    assert(build == vim.NIL or type(build) == 'string')
   end)
 end)
 
@@ -56,10 +58,18 @@ describe('api metadata', function()
     return by_name
   end
 
-  -- Remove metadata that is not essential to backwards-compatibility.
-  local function filter_function_metadata(f)
+  -- Remove or patch metadata that is not essential to backwards-compatibility.
+  local function normalize_func_metadata(f)
+    -- Dictionary was renamed to Dict. That doesn't break back-compat because clients don't actually
+    -- use the `return_type` field (evidence: "ArrayOf(…)" didn't break clients).
+    f.return_type = f.return_type:gsub('Dictionary', 'Dict')
+
     f.deprecated_since = nil
     for idx, _ in ipairs(f.parameters) do
+      -- Dictionary was renamed to Dict. Doesn't break back-compat because clients don't actually
+      -- use the `parameters` field of API metadata (evidence: "ArrayOf(…)" didn't break clients).
+      f.parameters[idx][1] = f.parameters[idx][1]:gsub('Dictionary', 'Dict')
+
       f.parameters[idx][2] = '' -- Remove parameter name.
     end
 
@@ -83,28 +93,28 @@ describe('api metadata', function()
   local function clean_level_0(metadata)
     for _, f in ipairs(metadata.functions) do
       f.can_fail = nil
-      f.async = nil
+      f.async = nil -- XXX: renamed to "fast".
       f.receives_channel_id = nil
       f.since = 0
     end
   end
 
-  local api_info, compat, stable, api_level
+  local api_info --[[@type table]]
+  local compat --[[@type integer]]
+  local stable --[[@type integer]]
+  local api_level --[[@type integer]]
   local old_api = {}
   setup(function()
     clear() -- Ensure a session before requesting api_info.
+    --[[@type { version: {api_compatible: integer, api_level: integer, api_prerelease: boolean} }]]
     api_info = api.nvim_get_api_info()[2]
     compat = api_info.version.api_compatible
     api_level = api_info.version.api_level
-    if api_info.version.api_prerelease then
-      stable = api_level - 1
-    else
-      stable = api_level
-    end
+    stable = api_info.version.api_prerelease and api_level - 1 or api_level
 
     for level = compat, stable do
       local path = ('test/functional/fixtures/api_level_' .. tostring(level) .. '.mpack')
-      old_api[level] = read_mpack_file(path)
+      old_api[level] = read_mpack_file(path) --[[@type table]]
       if old_api[level] == nil then
         local errstr = 'missing metadata fixture for stable level ' .. level .. '. '
         if level == api_level and not api_info.version.api_prerelease then
@@ -139,7 +149,7 @@ describe('api metadata', function()
             )
           end
         else
-          eq(filter_function_metadata(f), filter_function_metadata(funcs_new[f.name]))
+          eq(normalize_func_metadata(f), normalize_func_metadata(funcs_new[f.name]))
         end
       end
       funcs_compat[level] = name_table(old_api[level].functions)

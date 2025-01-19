@@ -186,6 +186,24 @@ size_t schar_len(schar_T sc)
   }
 }
 
+int schar_cells(schar_T sc)
+{
+  // hot path
+#ifdef ORDER_BIG_ENDIAN
+  if (!(sc & 0x80FFFFFF)) {
+    return 1;
+  }
+#else
+  if (sc < 0x80) {
+    return 1;
+  }
+#endif
+
+  char sc_buf[MAX_SCHAR_SIZE];
+  schar_get(sc_buf, sc);
+  return utf_ptr2cells(sc_buf);
+}
+
 /// gets first raw UTF-8 byte of an schar
 static char schar_get_first_byte(schar_T sc)
 {
@@ -365,7 +383,8 @@ void grid_line_start(ScreenGrid *grid, int row)
 
   assert((size_t)grid_line_maxcol <= linebuf_size);
 
-  if (rdb_flags & RDB_INVALID) {
+  if (full_screen && (rdb_flags & kOptRdbFlagInvalid)) {
+    assert(linebuf_char);
     // Current batch must not depend on previous contents of linebuf_char.
     // Set invalid values which will cause assertion failures later if they are used.
     memset(linebuf_char, 0xFF, sizeof(schar_T) * linebuf_size);
@@ -428,23 +447,27 @@ int grid_line_puts(int col, const char *text, int textlen, int attr)
   const int max_col = grid_line_maxcol;
   while (col < max_col && (len < 0 || (int)(ptr - text) < len) && *ptr != NUL) {
     // check if this is the first byte of a multibyte
-    int mbyte_blen = len > 0
-                     ? utfc_ptr2len_len(ptr, (int)((text + len) - ptr))
-                     : utfc_ptr2len(ptr);
+    int mbyte_blen;
+    if (len >= 0) {
+      int maxlen = (int)((text + len) - ptr);
+      mbyte_blen = utfc_ptr2len_len(ptr, maxlen);
+      if (mbyte_blen > maxlen) {
+        mbyte_blen = 1;
+      }
+    } else {
+      mbyte_blen = utfc_ptr2len(ptr);
+    }
     int firstc;
-    schar_T schar = len >= 0
-                    ? utfc_ptr2schar_len(ptr, (int)((text + len) - ptr), &firstc)
-                    : utfc_ptr2schar(ptr, &firstc);
-    int mbyte_cells = utf_char2cells(firstc);
-    if (mbyte_cells > 2) {
+    schar_T schar = utfc_ptrlen2schar(ptr, mbyte_blen, &firstc);
+    int mbyte_cells = utf_ptr2cells_len(ptr, mbyte_blen);
+    if (mbyte_cells > 2 || schar == 0) {
       mbyte_cells = 1;
-
       schar = schar_from_char(0xFFFD);
     }
 
     if (col + mbyte_cells > max_col) {
       // Only 1 cell left, but character requires 2 cells:
-      // display a '>' in the last column to avoid wrapping. */
+      // display a '>' in the last column to avoid wrapping.
       schar = schar_from_ascii('>');
       mbyte_cells = 1;
     }
@@ -580,7 +603,7 @@ void grid_line_flush(void)
 void grid_line_flush_if_valid_row(void)
 {
   if (grid_line_row < 0 || grid_line_row >= grid_line_grid->rows) {
-    if (rdb_flags & RDB_INVALID) {
+    if (rdb_flags & kOptRdbFlagInvalid) {
       abort();
     } else {
       grid_line_grid = NULL;
@@ -617,7 +640,7 @@ static int grid_char_needs_redraw(ScreenGrid *grid, int col, size_t off_to, int 
                || (cols > 1 && linebuf_char[col + 1] == 0
                    && linebuf_char[col + 1] != grid->chars[off_to + 1]))
               || exmode_active  // TODO(bfredl): what in the actual fuck
-              || rdb_flags & RDB_NODELTA));
+              || rdb_flags & kOptRdbFlagNodelta));
 }
 
 /// Move one buffered line to the window grid, but only the characters that
@@ -762,7 +785,7 @@ void grid_put_linebuf(ScreenGrid *grid, int row, int coloff, int col, int endcol
     size_t off = off_to + (size_t)col;
     if (grid->chars[off] != schar_from_ascii(' ')
         || grid->attrs[off] != bg_attr
-        || rdb_flags & RDB_NODELTA) {
+        || rdb_flags & kOptRdbFlagNodelta) {
       grid->chars[off] = schar_from_ascii(' ');
       grid->attrs[off] = bg_attr;
       if (clear_dirty_start == -1) {

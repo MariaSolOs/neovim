@@ -1,13 +1,15 @@
-local t = require('test.functional.testutil')()
+local t = require('test.testutil')
+local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
-local clear = t.clear
-local command = t.command
-local insert = t.insert
-local api = t.api
+
+local clear = n.clear
+local command = n.command
+local insert = n.insert
+local api = n.api
 local eq = t.eq
-local poke_eventloop = t.poke_eventloop
-local feed = t.feed
-local fn = t.fn
+local poke_eventloop = n.poke_eventloop
+local feed = n.feed
+local fn = n.fn
 local pcall_err = t.pcall_err
 
 describe('winbar', function()
@@ -16,7 +18,6 @@ describe('winbar', function()
   before_each(function()
     clear()
     screen = Screen.new(60, 13)
-    screen:attach()
     screen:set_default_attr_ids({
       [1] = { bold = true },
       [2] = { reverse = true },
@@ -37,6 +38,16 @@ describe('winbar', function()
         underline = true,
         bold = true,
         foreground = Screen.colors.Magenta,
+      },
+      [12] = {
+        underline = true,
+        background = Screen.colors.Red,
+      },
+      [13] = {
+        underline = true,
+        bold = true,
+        foreground = Screen.colors.Blue,
+        background = Screen.colors.Red,
       },
     })
     api.nvim_set_option_value('winbar', 'Set Up The Bars', {})
@@ -176,6 +187,18 @@ describe('winbar', function()
       {3:~                            }│                              |
       {3:~                            }│{3:~                             }|
       {2:[No Name]                     [No Name]                     }|
+                                                                  |
+    ]])
+  end)
+
+  it('works with combined highlight attributes', function()
+    command('hi Winbar guibg=red gui=underline')
+    command('hi Identifier guifg=blue gui=bold')
+    command('set winbar=Lookatmy%#Identifier#highlights')
+    screen:expect([[
+      {12:Lookatmy}{13:highlights                                          }|
+      ^                                                            |
+      {3:~                                                           }|*10
                                                                   |
     ]])
   end)
@@ -524,7 +547,6 @@ describe('local winbar with tabs', function()
   before_each(function()
     clear()
     screen = Screen.new(60, 10)
-    screen:attach()
     api.nvim_set_option_value('winbar', 'foo', { scope = 'local', win = 0 })
   end)
 
@@ -602,7 +624,6 @@ it('winbar works properly when redrawing is postponed #23534', function()
     },
   })
   local screen = Screen.new(60, 6)
-  screen:attach()
   screen:expect([[
     {5:(winbar)                                                    }|
     ^                                                            |

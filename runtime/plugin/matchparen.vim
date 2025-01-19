@@ -1,6 +1,6 @@
 " Vim plugin for showing matching parens
 " Maintainer:	The Vim Project <https://github.com/vim/vim>
-" Last Change:	2023 Oct 20
+" Last Change:	2024 May 18
 " Former Maintainer:	Bram Moolenaar <Bram@vim.org>
 
 " Exit quickly when:
@@ -16,6 +16,9 @@ if !exists("g:matchparen_timeout")
 endif
 if !exists("g:matchparen_insert_timeout")
   let g:matchparen_insert_timeout = 60
+endif
+if !exists("g:matchparen_disable_cursor_hl")
+  let g:matchparen_disable_cursor_hl = 0
 endif
 
 let s:has_matchaddpos = exists('*matchaddpos')
@@ -60,12 +63,8 @@ func s:Highlight_Matching_Pair()
   let before = 0
 
   let text = getline(c_lnum)
-  let matches = matchlist(text, '\(.\)\=\%'.c_col.'c\(.\=\)')
-  if empty(matches)
-    let [c_before, c] = ['', '']
-  else
-    let [c_before, c] = matches[1:2]
-  endif
+  let c_before = text->strpart(0, c_col - 1)->slice(-1)
+  let c = text->strpart(c_col - 1)->slice(0, 1)
   let plist = split(&matchpairs, '.\zs[:,]')
   let i = index(plist, c)
   if i < 0
@@ -110,6 +109,10 @@ func s:Highlight_Matching_Pair()
 
   if !has("syntax") || !exists("g:syntax_on")
     let s_skip = "0"
+  elseif exists("b:ts_highlight") && &syntax != 'on'
+    let s_skip = "match(v:lua.vim.treesitter.get_captures_at_cursor(), '"
+          \ .. 'string\|character\|singlequote\|escape\|symbol\|comment'
+          \ .. "') != -1"
   else
     " Build an expression that detects whether the current cursor position is
     " in certain syntax types (string, comment, etc.), for use as
@@ -193,10 +196,18 @@ func s:Highlight_Matching_Pair()
   " If a match is found setup match highlighting.
   if m_lnum > 0 && m_lnum >= stoplinetop && m_lnum <= stoplinebottom 
     if s:has_matchaddpos
-      call add(w:matchparen_ids, matchaddpos('MatchParen', [[c_lnum, c_col - before], [m_lnum, m_col]], 10))
+      if !g:matchparen_disable_cursor_hl
+        call add(w:matchparen_ids, matchaddpos('MatchParen', [[c_lnum, c_col - before], [m_lnum, m_col]], 10))
+      else
+        call add(w:matchparen_ids, matchaddpos('MatchParen', [[m_lnum, m_col]], 10))
+      endif
     else
-      exe '3match MatchParen /\(\%' . c_lnum . 'l\%' . (c_col - before) .
-	    \ 'c\)\|\(\%' . m_lnum . 'l\%' . m_col . 'c\)/'
+      if !g:matchparen_disable_cursor_hl
+        exe '3match MatchParen /\(\%' . c_lnum . 'l\%' . (c_col - before) .
+              \ 'c\)\|\(\%' . m_lnum . 'l\%' . m_col . 'c\)/'
+      else
+        exe '3match MatchParen /\(\%' . m_lnum . 'l\%' . m_col . 'c\)/'
+      endif
       call add(w:matchparen_ids, 3)
     endif
     let w:paren_hl_on = 1
@@ -218,7 +229,7 @@ command NoMatchParen call s:NoMatchParen()
 
 func s:NoMatchParen()
   let w = winnr()
-  noau windo silent! call matchdelete(3)
+  noau windo call s:Remove_Matches()
   unlet! g:loaded_matchparen
   exe "noau ". w . "wincmd w"
   au! matchparen

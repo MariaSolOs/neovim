@@ -37,6 +37,7 @@ Layout
 - `/test/benchmark` : benchmarks
 - `/test/functional` : functional tests
 - `/test/unit` : unit tests
+- `/test/old/testdir` : old tests (from Vim)
 - `/test/config` : contains `*.in` files which are transformed into `*.lua`
   files using `configure_file` CMake command: this is for accessing CMake
   variables in lua tests.
@@ -44,11 +45,13 @@ Layout
   parser: normally used to make macros not accessible via this mechanism
   accessible the other way.
 - `/test/*/preload.lua` : modules preloaded by busted `--helper` option
-- `/test/**/testutil.lua` : common utility functions for test code
+- `/test/**/testutil.lua` : common utility functions in the context of the test
+  runner
+- `/test/**/testnvim.lua` : common utility functions in the context of the
+  test session (RPC channel to the Nvim child process created by clear() for each test)
 - `/test/*/**/*_spec.lua` : actual tests. Files that do not end with
   `_spec.lua` are libraries like `/test/**/testutil.lua`, except that they have
   some common topic.
-- `/test/old/testdir` : old tests (from Vim)
 
 
 Running tests
@@ -100,7 +103,7 @@ Debugging tests
     DBG 2022-06-15T18:37:45.227 T57.58016.0/c UI: stop
     INF 2022-06-15T18:37:45.227 T57.58016.0/c os_exit:595: Nvim exit: 0
     DBG 2022-06-15T18:37:45.229 T57.58016.0   read_cb:118: closing Stream (0x7fd5d700ea18): EOF (end of file)
-    INF 2022-06-15T18:37:45.229 T57.58016.0   on_process_exit:400: exited: pid=58017 status=0 stoptime=0
+    INF 2022-06-15T18:37:45.229 T57.58016.0   on_proc_exit:400: exited: pid=58017 status=0 stoptime=0
   ```
 - You can set `$GDB` to [run functional tests under gdbserver](https://github.com/neovim/neovim/pull/1527):
 
@@ -119,7 +122,7 @@ Debugging tests
   If `$VALGRIND` is also set it will pass `--vgdb=yes` to valgrind instead of
   starting gdbserver directly.
 
-  See [test/functional/testutil.lua](https://github.com/neovim/neovim/blob/9cadbf1d36b63f53f0de48c8c5ff6c752ff05d70/test/functional/testutil.lua#L52-L69) for details.
+  See `nvim_argv` in https://github.com/neovim/neovim/blob/master/test/functional/testnvim.lua.
 
 - Hanging tests can happen due to unexpected "press-enter" prompts. The
   default screen width is 50 columns. Commands that try to print lines longer
@@ -134,6 +137,163 @@ Debugging tests
   ```
   Then put `screen:snapshot_util()` anywhere in your test. See the comments in
   `test/functional/ui/screen.lua` for more info.
+
+Debugging Lua test code
+-----------------------
+
+Debugging Lua test code is a bit involved. Get your shopping list ready, you'll
+need to install and configure:
+
+1. [nvim-dap](https://github.com/mfussenegger/nvim-dap)
+2. [local-lua-debugger-vscode](https://github.com/mfussenegger/nvim-dap/wiki/Debug-Adapter-installation#local-lua-debugger-vscode)
+3. [nlua](https://github.com/mfussenegger/nlua)
+4. [one-small-step-for-vimkind](https://github.com/jbyuki/one-small-step-for-vimkind) (called `osv`)
+5. A `nbusted` command in `$PATH`. This command can be a copy of `busted` with
+   `exec '/usr/bin/lua5.1'"` replaced with `"exec '/usr/bin/nlua'"` (or the
+   path to your `nlua`)
+
+
+The setup roughly looks like this:
+
+```
+ ┌─────────────────────────┐
+ │ nvim used for debugging │◄────┐
+ └─────────────────────────┘     │
+            │                    │
+            ▼                    │
+   ┌─────────────────┐           │
+   │ local-lua-debug │           │
+   └─────────────────┘           │
+           │                     │
+           ▼                     │
+      ┌─────────┐                │
+      │ nbusted │                │
+      └─────────┘                │
+           │                     │
+           ▼                     │
+      ┌───────────┐              │
+      │ test-case │              │
+      └───────────┘              │
+           │                     │
+           ▼                     │
+   ┌────────────────────┐        │
+   │ nvim test-instance │        │
+   └────────────────────┘        │
+     │   ┌─────┐                 │
+     └──►│ osv │─────────────────┘
+         └─────┘
+```
+
+
+With these installed you can use a configuration like this:
+
+
+```lua
+local dap = require("dap")
+
+
+local function free_port()
+  local tcp = vim.loop.new_tcp()
+  assert(tcp)
+  tcp:bind('127.0.0.1', 0)
+  local port = tcp:getsockname().port
+  tcp:shutdown()
+  tcp:close()
+  return port
+end
+
+
+local name = "nvim-test-case" -- arbitrary name
+local config = {
+  name = name,
+
+  -- value of type must match the key used in `dap.adapters["local-lua"] = ...` from step 2)
+  type = "local-lua",
+
+  request = "launch",
+  cwd = "${workspaceFolder}",
+  program = {
+    command = "nbusted",
+  },
+  args = {
+    "--ignore-lua",
+    "--lazy",
+    "--helper=test/functional/preload.lua",
+    "--lpath=build/?.lua",
+    "--lpath=?.lua",
+
+    -- path to file to debug, could be replaced with a hardcoded string
+    function()
+      return vim.api.nvim_buf_get_name(0)
+    end,
+
+    -- You can filter to specific test-case by adding:
+    -- '--filter="' .. test_case_name .. '"',
+  },
+  env = {
+    OSV_PORT = free_port
+  }
+}
+
+-- Whenever the config is used it needs to launch a second debug session that attaches to `osv`
+-- This makes it possible to step into `exec_lua` code blocks
+setmetatable(config, {
+
+  __call = function(c)
+    ---@param session dap.Session
+    dap.listeners.after.event_initialized["nvim_debug"] = function(session)
+      if session.config.name ~= name then
+        return
+      end
+      dap.listeners.after.event_initialized["nvim_debug"] = nil
+      vim.defer_fn(function()
+        dap.run({
+          name = "attach-osv",
+          type = "nlua", -- value must match the `dap.adapters` definition key for osv
+          request = "attach",
+          port = session.config.env.OSV_PORT,
+        })
+      end, 500)
+    end
+
+    return c
+  end,
+})
+
+```
+
+You can either add this configuration to your `dap.configurations.lua` list as
+described in `:help dap-configuration` or create it dynamically in a
+user-command or function and call it directly via `dap.run(config)`. The latter
+is useful if you use tree-sitter to find the test case around a cursor location
+with a query like the following and set the `--filter` property to it.
+
+```query
+(function_call
+  name: (identifier) @name (#any-of? @name "describe" "it")
+  arguments: (arguments
+    (string) @str
+  )
+)
+```
+
+Limitations:
+
+- You need to add the following boilerplate to each spec file where you want to
+  be able to stop at breakpoints within the test-case code:
+
+```
+if os.getenv("LOCAL_LUA_DEBUGGER_VSCODE") == "1" then
+  require("lldebugger").start()
+end
+```
+
+This is a [local-lua-debugger
+limitation](https://github.com/tomblind/local-lua-debugger-vscode?tab=readme-ov-file#busted)
+
+- You cannot step into code of files which get baked into the nvim binary like
+  the `shared.lua`.
+
 
 Filtering Tests
 ---------------
@@ -260,7 +420,7 @@ by the semantic component they are testing.
 Lint
 ====
 
-`make lint` (and `make lualint`) runs [luacheck](https://github.com/mpeterv/luacheck)
+`make lint` (and `make lintlua`) runs [luacheck](https://github.com/mpeterv/luacheck)
 on the test code.
 
 If a luacheck warning must be ignored, specify the warning code. Example:
@@ -297,7 +457,7 @@ Number; !must be defined to function properly):
 - `VALGRIND` (F) (D): makes nvim instances to be run under `valgrind`. Log
   files are named `valgrind-%p.log` in this case. Note that non-empty valgrind
   log may fail tests. Valgrind arguments may be seen in
-  `/test/functional/testutil.lua`. May be used in conjunction with `GDB`.
+  `/test/functional/testnvim.lua`. May be used in conjunction with `GDB`.
 
 - `VALGRIND_LOG` (F) (S): overrides valgrind log file name used for `VALGRIND`.
 
@@ -376,3 +536,6 @@ Number; !must be defined to function properly):
 
 - `NVIM_TEST_MAXTRACE` (U) (N): specifies maximum number of trace lines to
   keep. Default is 1024.
+
+- `OSV_PORT`: (F): launches `osv` listening on the given port within nvim test
+  instances.

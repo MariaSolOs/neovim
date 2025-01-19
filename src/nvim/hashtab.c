@@ -26,6 +26,7 @@
 #include "nvim/ascii_defs.h"
 #include "nvim/gettext_defs.h"
 #include "nvim/hashtab.h"
+#include "nvim/macros_defs.h"
 #include "nvim/memory.h"
 #include "nvim/message.h"
 #include "nvim/vim_defs.h"
@@ -316,10 +317,7 @@ static void hash_may_resize(hashtab_T *ht, size_t minitems)
     }
   } else {
     // Use specified size.
-    if (minitems < ht->ht_used) {
-      // just in case...
-      minitems = ht->ht_used;
-    }
+    minitems = MAX(minitems, ht->ht_used);
     // array is up to 2/3 full
     minsize = minitems * 3 / 2;
   }

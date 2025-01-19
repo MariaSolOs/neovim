@@ -4,6 +4,9 @@ typedef struct TUIData TUIData;
 
 typedef enum {
   kTermModeSynchronizedOutput = 2026,
+  kTermModeGraphemeClusters = 2027,
+  kTermModeThemeUpdates = 2031,
+  kTermModeResizeEvents = 2048,
 } TermMode;
 
 typedef enum {

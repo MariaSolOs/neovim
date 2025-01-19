@@ -1,19 +1,19 @@
 -- To run this test:
 --    TEST_FILE=test/functional/example_spec.lua make functionaltest
 
-local t = require('test.functional.testutil')()
+local t = require('test.testutil')
+local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
-local clear = t.clear
-local command = t.command
+local clear = n.clear
+local command = n.command
 local eq = t.eq
-local feed = t.feed
+local feed = n.feed
 
 describe('example', function()
   local screen
   before_each(function()
     clear()
     screen = Screen.new(20, 5)
-    screen:attach()
     screen:set_default_attr_ids({
       [0] = { bold = true, foreground = Screen.colors.Blue },
       [1] = { bold = true, foreground = Screen.colors.Brown },
@@ -46,8 +46,7 @@ describe('example', function()
     -- The UI must declare that it wants to handle the UI events.
     -- For this example, we enable `ext_tabline`:
     screen:detach()
-    screen = Screen.new(25, 5)
-    screen:attach({ rgb = true, ext_tabline = true })
+    screen = Screen.new(25, 5, { rgb = true, ext_tabline = true })
 
     -- From ":help ui" we find that `tabline_update` receives `curtab` and
     -- `tabs` objects. So we declare the UI handler like this:

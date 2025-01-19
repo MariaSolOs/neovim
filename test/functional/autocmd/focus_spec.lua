@@ -1,7 +1,9 @@
-local t = require('test.functional.testutil')()
-local tt = require('test.functional.terminal.testutil')
-local clear = t.clear
-local feed_command = t.feed_command
+local t = require('test.testutil')
+local n = require('test.functional.testnvim')()
+local tt = require('test.functional.testterm')
+
+local clear = n.clear
+local feed_command = n.feed_command
 local feed_data = tt.feed_data
 
 if t.skip(t.is_os('win')) then
@@ -45,7 +47,7 @@ describe('autoread TUI FocusGained/FocusLost', function()
 
     screen:expect {
       grid = [[
-      {1: }                                                 |
+      ^                                                  |
       {4:~                                                 }|*3
       {5:[No Name]                                         }|
                                                         |
@@ -55,7 +57,7 @@ describe('autoread TUI FocusGained/FocusLost', function()
     feed_command('edit ' .. path)
     screen:expect {
       grid = [[
-      {1: }                                                 |
+      ^                                                  |
       {4:~                                                 }|*3
       {5:xtest-foo                                         }|
       :edit xtest-foo                                   |
@@ -66,7 +68,7 @@ describe('autoread TUI FocusGained/FocusLost', function()
     feed_data('\027[O')
     screen:expect {
       grid = [[
-      {1: }                                                 |
+      ^                                                  |
       {4:~                                                 }|*3
       {5:xtest-foo                                         }|
       :edit xtest-foo                                   |
@@ -81,7 +83,7 @@ describe('autoread TUI FocusGained/FocusLost', function()
 
     screen:expect {
       grid = [[
-      {1:l}ine 1                                            |
+      ^line 1                                            |
       line 2                                            |
       line 3                                            |
       line 4                                            |

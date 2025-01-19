@@ -1,8 +1,10 @@
 #pragma once
 
 #include <inttypes.h>
+#include <stdbool.h>
 #include <string.h>
 
+#include "klib/kvec.h"
 #include "mpack/mpack_core.h"
 #include "mpack/object.h"
 #include "nvim/api/private/defs.h"
@@ -40,6 +42,8 @@ struct Unpacker {
   GridLineEvent grid_line_event;
   bool has_grid_line_event;
 };
+
+typedef kvec_t(char) AdditionalDataBuilder;
 
 // unrecovareble error. unpack_error should be set!
 #define unpacker_closed(p) ((p)->state < 0)

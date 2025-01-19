@@ -1,20 +1,23 @@
 ; Lower priority to prefer @variable.parameter when identifier appears in parameter_declaration.
 ((identifier) @variable
-  (#set! "priority" 95))
+  (#set! priority 95))
 
 (preproc_def
   (preproc_arg) @variable)
 
 [
   "default"
-  "enum"
-  "struct"
-  "typedef"
-  "union"
   "goto"
   "asm"
   "__asm__"
 ] @keyword
+
+[
+  "enum"
+  "struct"
+  "union"
+  "typedef"
+] @keyword.type
 
 [
   "sizeof"
@@ -249,12 +252,21 @@
 
 ; Preproc def / undef
 (preproc_def
-  name: (_) @constant)
+  name: (_) @constant.macro)
 
 (preproc_call
   directive: (preproc_directive) @_u
-  argument: (_) @constant
+  argument: (_) @constant.macro
   (#eq? @_u "#undef"))
+
+(preproc_ifdef
+  name: (identifier) @constant.macro)
+
+(preproc_elifdef
+  name: (identifier) @constant.macro)
+
+(preproc_defined
+  (identifier) @constant.macro)
 
 (call_expression
   function: (identifier) @function.call)

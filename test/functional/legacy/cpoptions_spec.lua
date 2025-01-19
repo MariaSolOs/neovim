@@ -1,15 +1,15 @@
-local t = require('test.functional.testutil')()
+local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
-local clear = t.clear
-local command = t.command
-local feed = t.feed
+
+local clear = n.clear
+local command = n.command
+local feed = n.feed
 
 before_each(clear)
 
 describe('cpoptions', function()
   it('$', function()
     local screen = Screen.new(30, 6)
-    screen:attach()
     command('set cpo+=$')
     command([[call setline(1, 'one two three')]])
     feed('c2w')

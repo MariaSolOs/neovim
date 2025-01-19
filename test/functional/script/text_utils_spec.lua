@@ -1,5 +1,7 @@
-local t = require('test.functional.testutil')()
-local exec_lua = t.exec_lua
+local t = require('test.testutil')
+local n = require('test.functional.testnvim')()
+
+local exec_lua = n.exec_lua
 local eq = t.eq
 
 local function md_to_vimdoc(text, start_indent, indent, text_width)
@@ -9,8 +11,8 @@ local function md_to_vimdoc(text, start_indent, indent, text_width)
     start_indent = start_indent or 0
     indent = indent or 0
     text_width = text_width or 70
-    local text_utils = require('scripts/text_utils')
-    return text_utils.md_to_vimdoc(table.concat(text, '\n'), start_indent, indent, text_width)
+    local util = require('scripts/util')
+    return util.md_to_vimdoc(table.concat(text, '\n'), start_indent, indent, text_width)
   ]],
     text,
     start_indent,
@@ -28,7 +30,7 @@ end
 
 describe('md_to_vimdoc', function()
   before_each(function()
-    t.clear()
+    n.clear()
   end)
 
   test('can render para after fenced code', {

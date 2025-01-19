@@ -11,6 +11,7 @@
 #include "nvim/ascii_defs.h"
 #include "nvim/charset.h"
 #include "nvim/debugger.h"
+#include "nvim/errors.h"
 #include "nvim/eval.h"
 #include "nvim/eval/typval.h"
 #include "nvim/eval/typval_defs.h"
@@ -405,7 +406,7 @@ char *get_exception_string(void *value, except_type_T type, char *cmdname, bool 
                           || (ascii_isdigit(p[3])
                               && p[4] == ':')))))) {
         if (*p == NUL || p == mesg) {
-          STRCAT(val, mesg);  // 'E123' missing or at beginning
+          strcat(val, mesg);  // 'E123' missing or at beginning
         } else {
           // '"filename" E123: message text'
           if (mesg[0] != '"' || p - 2 < &mesg[1]
@@ -414,7 +415,7 @@ char *get_exception_string(void *value, except_type_T type, char *cmdname, bool 
             continue;
           }
 
-          STRCAT(val, p);
+          strcat(val, p);
           p[-2] = NUL;
           snprintf(val + strlen(p), strlen(" (%s)"), " (%s)", &mesg[1]);
           p[-2] = '"';
@@ -477,6 +478,9 @@ static int throw_exception(void *value, except_type_T type, char *cmdname)
     }
     excp->throw_lnum = SOURCING_LNUM;
   }
+
+  excp->stacktrace = stacktrace_create();
+  tv_list_ref(excp->stacktrace);
 
   if (p_verbose >= 13 || debug_break_level > 0) {
     int save_msg_silent = msg_silent;
@@ -562,6 +566,7 @@ static void discard_exception(except_T *excp, bool was_finished)
     free_msglist(excp->messages);
   }
   xfree(excp->throw_name);
+  tv_list_unref(excp->stacktrace);
   xfree(excp);
 }
 
@@ -583,6 +588,7 @@ static void catch_exception(except_T *excp)
   excp->caught = caught_stack;
   caught_stack = excp;
   set_vim_var_string(VV_EXCEPTION, excp->value, -1);
+  set_vim_var_list(VV_STACKTRACE, excp->stacktrace);
   if (*excp->throw_name != NUL) {
     if (excp->throw_lnum != 0) {
       vim_snprintf(IObuff, IOSIZE, _("%s, line %" PRId64),
@@ -632,6 +638,7 @@ static void finish_exception(except_T *excp)
   caught_stack = caught_stack->caught;
   if (caught_stack != NULL) {
     set_vim_var_string(VV_EXCEPTION, caught_stack->value, -1);
+    set_vim_var_list(VV_STACKTRACE, caught_stack->stacktrace);
     if (*caught_stack->throw_name != NUL) {
       if (caught_stack->throw_lnum != 0) {
         vim_snprintf(IObuff, IOSIZE,
@@ -650,6 +657,7 @@ static void finish_exception(except_T *excp)
   } else {
     set_vim_var_string(VV_EXCEPTION, NULL, -1);
     set_vim_var_string(VV_THROWPOINT, NULL, -1);
+    set_vim_var_list(VV_STACKTRACE, NULL);
   }
 
   // Discard the exception, but use the finish message for 'verbose'.
@@ -848,7 +856,7 @@ void ex_if(exarg_T *eap)
     bool skip = CHECK_SKIP;
 
     bool error;
-    bool result = eval_to_bool(eap->arg, &error, eap, skip);
+    bool result = eval_to_bool(eap->arg, &error, eap, skip, false);
 
     if (!skip && !error) {
       if (result) {
@@ -943,7 +951,7 @@ void ex_else(exarg_T *eap)
     if (skip && *eap->arg != '"' && ends_excmd(*eap->arg)) {
       semsg(_(e_invexpr2), eap->arg);
     } else {
-      result = eval_to_bool(eap->arg, &error, eap, skip);
+      result = eval_to_bool(eap->arg, &error, eap, skip, false);
     }
 
     // When throwing error exceptions, we want to throw always the first
@@ -989,7 +997,7 @@ void ex_while(exarg_T *eap)
 
     int skip = CHECK_SKIP;
     if (eap->cmdidx == CMD_while) {  // ":while bool-expr"
-      result = eval_to_bool(eap->arg, &error, eap, skip);
+      result = eval_to_bool(eap->arg, &error, eap, skip, false);
     } else {  // ":for var in list-expr"
       evalarg_T evalarg;
       fill_evalarg_from_eap(&evalarg, eap, skip);

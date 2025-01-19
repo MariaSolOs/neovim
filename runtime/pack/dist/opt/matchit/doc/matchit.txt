@@ -4,7 +4,7 @@ For instructions on installing this file, type
 	`:help matchit-install`
 inside Vim.
 
-For Vim version 9.0.  Last change:  2023 June 28
+For Vim version 9.1.  Last change:  2024 May 20
 
 
 		  VIM REFERENCE MANUAL    by Benji Fisher et al
@@ -176,8 +176,8 @@ defined automatically.
 
 2.1 Temporarily disable the matchit plugin	*matchit-disable* *:MatchDisable*
 
-To temporarily reset the plugins, that are setup you can run the following
-command: >
+To temporarily disable the matchit plugin, after it hat been loaded,
+execute this command: >
 	:MatchDisable
 
 This will delete all the defined key mappings to the Vim default.
@@ -237,6 +237,8 @@ supported by matchit.vim:
 	S:foo becomes (current syntax item) !~ foo
 	r:foo becomes (line before cursor) =~ foo
 	R:foo becomes (line before cursor) !~ foo
+	t:foo becomes (current treesitter captures) =~ foo
+	T:foo becomes (current treesitter captures) !~ foo
 (The "s" is meant to suggest "syntax", and the "r" is meant to suggest
 "regular expression".)
 

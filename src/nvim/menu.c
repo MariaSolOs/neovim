@@ -13,6 +13,7 @@
 #include "nvim/charset.h"
 #include "nvim/cmdexpand_defs.h"
 #include "nvim/cursor.h"
+#include "nvim/errors.h"
 #include "nvim/eval.h"
 #include "nvim/eval/typval.h"
 #include "nvim/eval/typval_defs.h"
@@ -24,7 +25,6 @@
 #include "nvim/getchar_defs.h"
 #include "nvim/gettext_defs.h"
 #include "nvim/globals.h"
-#include "nvim/highlight.h"
 #include "nvim/highlight_defs.h"
 #include "nvim/keycodes.h"
 #include "nvim/macros_defs.h"
@@ -807,7 +807,7 @@ static void show_menus_recursive(vimmenu_T *menu, int modes, int depth)
       msg_puts(" ");
     }
     // Same highlighting as for directories!?
-    msg_outtrans(menu->name, HL_ATTR(HLF_D));
+    msg_outtrans(menu->name, HLF_D, false);
   }
 
   if (menu != NULL && menu->children == NULL) {
@@ -840,7 +840,7 @@ static void show_menus_recursive(vimmenu_T *menu, int modes, int depth)
         }
         msg_puts(" ");
         if (*menu->strings[bit] == NUL) {
-          msg_puts_attr("<Nop>", HL_ATTR(HLF_8));
+          msg_puts_hl("<Nop>", HLF_8, false);
         } else {
           msg_outtrans_special(menu->strings[bit], false, 0);
         }
@@ -1056,7 +1056,7 @@ char *get_menu_names(expand_T *xp, int idx)
       }
       // hack on menu separators:  use a 'magic' char for the separator
       // so that '.' in names gets escaped properly
-      STRCAT(tbuffer, "\001");
+      strcat(tbuffer, "\001");
       str = tbuffer;
     } else {
       if (should_advance) {

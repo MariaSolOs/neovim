@@ -1,12 +1,14 @@
-local t = require('test.functional.testutil')()
+local t = require('test.testutil')
+local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
-local clear = t.clear
+local t_shada = require('test.functional.shada.testutil')
+
+local clear = n.clear
 local eq, api, nvim_eval, nvim_command, exc_exec, fn, nvim_feed =
-  t.eq, t.api, t.eval, t.command, t.exc_exec, t.fn, t.feed
+  t.eq, n.api, n.eval, n.command, n.exc_exec, n.fn, n.feed
 local neq = t.neq
 local read_file = t.read_file
 
-local t_shada = require('test.functional.shada.testutil')
 local get_shada_rw = t_shada.get_shada_rw
 
 local function reset(shada_file)
@@ -66,7 +68,7 @@ describe('autoload/shada.vim', function()
         endfor
         return ret
       elseif type(a:val) == type('')
-        return {'_TYPE': v:msgpack_types.binary, '_VAL': split(a:val, "\n", 1)}
+        return {'_TYPE': v:msgpack_types.string, '_VAL': split(a:val, "\n", 1)}
       else
         return a:val
       endif
@@ -251,8 +253,7 @@ describe('autoload/shada.vim', function()
           '  + sm   magic value      "TRUE"',
           '  # Expected integer',
           '  + so   offset value     "TRUE"',
-          '  # Expected binary string',
-          '  + sp   pattern          ="abc"',
+          '  + sp   pattern          "abc"',
         },
         ([[ [{'type': 1, 'timestamp': 0, 'data': {
         'sm': 'TRUE',
@@ -265,7 +266,7 @@ describe('autoload/shada.vim', function()
         'n': -0x40,
         'l': -10,
         'c': 'abc',
-        'f': {'_TYPE': v:msgpack_types.binary, '_VAL': ["abc\ndef"]},
+        'f': {'_TYPE': v:msgpack_types.string, '_VAL': ["abc\ndef"]},
       }}] ]]):gsub('\n', '')
       )
       sd2strings_eq(
@@ -274,15 +275,14 @@ describe('autoload/shada.vim', function()
           '  % Key  Description  Value',
           '  # Expected no NUL bytes',
           '  + f    file name    "abc\\0def"',
-          '  # Expected array of binary strings',
-          '  + rc   contents     ["abc", ="abc"]',
+          '  + rc   contents     ["abc", "abc"]',
           '  # Expected integer',
           '  + rt   type         "ABC"',
         },
         ([[ [{'type': 1, 'timestamp': 0, 'data': {
         'rt': 'ABC',
         'rc': ["abc", {'_TYPE': v:msgpack_types.string, '_VAL': ["abc"]}],
-        'f': {'_TYPE': v:msgpack_types.binary, '_VAL': ["abc\ndef"]},
+        'f': {'_TYPE': v:msgpack_types.string, '_VAL': ["abc\ndef"]},
       }}] ]]):gsub('\n', '')
       )
       sd2strings_eq(
@@ -293,7 +293,7 @@ describe('autoload/shada.vim', function()
           '  + rc   contents     ["abc", "a\\nd\\0"]',
         },
         ([[ [{'type': 1, 'timestamp': 0, 'data': {
-        'rc': ["abc", {'_TYPE': v:msgpack_types.binary, '_VAL': ["a", "d\n"]}],
+        'rc': ["abc", {'_TYPE': v:msgpack_types.string, '_VAL': ["a", "d\n"]}],
       }}] ]]):gsub('\n', '')
       )
     end)
@@ -466,7 +466,7 @@ describe('autoload/shada.vim', function()
       sd2strings_eq({
         'Replacement string with timestamp ' .. epoch .. ':',
         '  # Unexpected type: map instead of array',
-        '  = {="a": [10]}',
+        '  = {"a": [10]}',
       }, { { type = 3, timestamp = 0, data = { a = { 10 } } } })
       sd2strings_eq(
         {
@@ -496,7 +496,7 @@ describe('autoload/shada.vim', function()
           '  - :s replacement string  "abc\\0def"',
         },
         ([[ [{'type': 3, 'timestamp': 0, 'data': [
-        {'_TYPE': v:msgpack_types.binary, '_VAL': ["abc\ndef"]},
+        {'_TYPE': v:msgpack_types.string, '_VAL': ["abc\ndef"]},
       ]}] ]]):gsub('\n', '')
       )
       sd2strings_eq(
@@ -506,7 +506,7 @@ describe('autoload/shada.vim', function()
           '  - :s replacement string  "abc\\ndef"',
         },
         ([[ [{'type': 3, 'timestamp': 0, 'data': [
-        {'_TYPE': v:msgpack_types.binary, '_VAL': ["abc", "def"]},
+        {'_TYPE': v:msgpack_types.string, '_VAL': ["abc", "def"]},
       ]}] ]]):gsub('\n', '')
       )
       sd2strings_eq(
@@ -517,7 +517,7 @@ describe('autoload/shada.vim', function()
           '  -                        0',
         },
         ([[ [{'type': 3, 'timestamp': 0, 'data': [
-        {'_TYPE': v:msgpack_types.binary, '_VAL': ["abc", "def"]},
+        {'_TYPE': v:msgpack_types.string, '_VAL': ["abc", "def"]},
         0,
       ]}] ]]):gsub('\n', '')
       )
@@ -527,7 +527,7 @@ describe('autoload/shada.vim', function()
       sd2strings_eq({
         'History entry with timestamp ' .. epoch .. ':',
         '  # Unexpected type: map instead of array',
-        '  = {="a": [10]}',
+        '  = {"a": [10]}',
       }, { { type = 4, timestamp = 0, data = { a = { 10 } } } })
       sd2strings_eq(
         {
@@ -680,7 +680,7 @@ describe('autoload/shada.vim', function()
         },
         ([[ [{'type': 4, 'timestamp': 0, 'data': [
         4,
-        {'_TYPE': v:msgpack_types.binary, '_VAL': ["abc\ndef"]},
+        {'_TYPE': v:msgpack_types.string, '_VAL': ["abc\ndef"]},
       ]}] ]]):gsub('\n', '')
       )
       sd2strings_eq(
@@ -907,7 +907,7 @@ describe('autoload/shada.vim', function()
       sd2strings_eq({
         'Variable with timestamp ' .. epoch .. ':',
         '  # Unexpected type: map instead of array',
-        '  = {="a": [10]}',
+        '  = {"a": [10]}',
       }, { { type = 6, timestamp = 0, data = { a = { 10 } } } })
       sd2strings_eq(
         {
@@ -939,7 +939,7 @@ describe('autoload/shada.vim', function()
           '  # Expected more elements in list',
         },
         ([[ [{'type': 6, 'timestamp': 0, 'data': [
-        {'_TYPE': v:msgpack_types.binary, '_VAL': ["\n"]},
+        {'_TYPE': v:msgpack_types.string, '_VAL': ["\n"]},
       ]}] ]]):gsub('\n', '')
       )
       sd2strings_eq(
@@ -950,7 +950,7 @@ describe('autoload/shada.vim', function()
           '  # Expected more elements in list',
         },
         ([[ [{'type': 6, 'timestamp': 0, 'data': [
-        {'_TYPE': v:msgpack_types.binary, '_VAL': ["foo"]},
+        {'_TYPE': v:msgpack_types.string, '_VAL': ["foo"]},
       ]}] ]]):gsub('\n', '')
       )
       sd2strings_eq(
@@ -961,7 +961,7 @@ describe('autoload/shada.vim', function()
           '  - value        NIL',
         },
         ([[ [{'type': 6, 'timestamp': 0, 'data': [
-        {'_TYPE': v:msgpack_types.binary, '_VAL': ["foo"]},
+        {'_TYPE': v:msgpack_types.string, '_VAL': ["foo"]},
         {'_TYPE': v:msgpack_types.nil, '_VAL': ["foo"]},
       ]}] ]]):gsub('\n', '')
       )
@@ -974,7 +974,7 @@ describe('autoload/shada.vim', function()
           '  -              NIL',
         },
         ([[ [{'type': 6, 'timestamp': 0, 'data': [
-        {'_TYPE': v:msgpack_types.binary, '_VAL': ["foo"]},
+        {'_TYPE': v:msgpack_types.string, '_VAL': ["foo"]},
         {'_TYPE': v:msgpack_types.nil, '_VAL': ["foo"]},
         {'_TYPE': v:msgpack_types.nil, '_VAL': ["foo"]},
       ]}] ]]):gsub('\n', '')
@@ -1039,7 +1039,7 @@ describe('autoload/shada.vim', function()
         },
         ([[ [{'type': 7, 'timestamp': 0, 'data': {
         'n': -10,
-        'f': {'_TYPE': v:msgpack_types.binary, '_VAL': ["\n"]},
+        'f': {'_TYPE': v:msgpack_types.string, '_VAL': ["\n"]},
       }}] ]]):gsub('\n', '')
       )
       sd2strings_eq(
@@ -1172,7 +1172,7 @@ describe('autoload/shada.vim', function()
         },
         ([[ [{'type': 8, 'timestamp': 0, 'data': {
         'n': -10,
-        'f': {'_TYPE': v:msgpack_types.binary, '_VAL': ["\n"]},
+        'f': {'_TYPE': v:msgpack_types.string, '_VAL': ["\n"]},
       }}] ]]):gsub('\n', '')
       )
       sd2strings_eq(
@@ -1235,7 +1235,7 @@ describe('autoload/shada.vim', function()
       sd2strings_eq({
         'Buffer list with timestamp ' .. epoch .. ':',
         '  # Unexpected type: map instead of array',
-        '  = {="a": [10]}',
+        '  = {"a": [10]}',
       }, { { type = 9, timestamp = 0, data = { a = { 10 } } } })
       sd2strings_eq({
         'Buffer list with timestamp ' .. epoch .. ':',
@@ -1245,7 +1245,7 @@ describe('autoload/shada.vim', function()
       sd2strings_eq({
         'Buffer list with timestamp ' .. epoch .. ':',
         '  # Expected array of maps',
-        '  = [{="a": 10}, []]',
+        '  = [{"a": 10}, []]',
       }, { { type = 9, timestamp = 0, data = { { a = 10 }, {} } } })
       sd2strings_eq({
         'Buffer list with timestamp ' .. epoch .. ':',
@@ -1320,7 +1320,7 @@ describe('autoload/shada.vim', function()
         },
         ([[ [{'type': 9, 'timestamp': 0, 'data': [
         {'f': 10},
-        {'f': {'_TYPE': v:msgpack_types.binary, '_VAL': ["\n"]}},
+        {'f': {'_TYPE': v:msgpack_types.string, '_VAL': ["\n"]}},
       ]}] ]]):gsub('\n', '')
       )
     end)
@@ -1383,7 +1383,7 @@ describe('autoload/shada.vim', function()
         },
         ([[ [{'type': 10, 'timestamp': 0, 'data': {
         'n': -10,
-        'f': {'_TYPE': v:msgpack_types.binary, '_VAL': ["\n"]},
+        'f': {'_TYPE': v:msgpack_types.string, '_VAL': ["\n"]},
       }}] ]]):gsub('\n', '')
       )
       sd2strings_eq(
@@ -1502,7 +1502,7 @@ describe('autoload/shada.vim', function()
         },
         ([[ [{'type': 11, 'timestamp': 0, 'data': {
         'n': -10,
-        'f': {'_TYPE': v:msgpack_types.binary, '_VAL': ["\n"]},
+        'f': {'_TYPE': v:msgpack_types.string, '_VAL': ["\n"]},
       }}] ]]):gsub('\n', '')
       )
       sd2strings_eq(
@@ -1614,7 +1614,7 @@ describe('autoload/shada.vim', function()
           timestamp = 0,
           data = {
             c = 'abc',
-            f = { '!binary', { 'abc\ndef' } },
+            f = { '!string', { 'abc\ndef' } },
             l = -10,
             n = -64,
             rc = '10',
@@ -1709,7 +1709,7 @@ describe('autoload/shada.vim', function()
           timestamp = 0,
           data = {
             c = 'abc',
-            f = { '!binary', { 'abc\ndef' } },
+            f = { '!string', { 'abc\ndef' } },
             l = -10,
             n = -64,
             rc = '10',
@@ -1890,7 +1890,7 @@ describe('autoload/shada.vim', function()
       } } }, {
         'Replacement string with timestamp ' .. epoch .. ':',
         '  # Unexpected type: map instead of array',
-        '  = {="a": [10]}',
+        '  = {"a": [10]}',
       })
       strings2sd_eq({ { type = 3, timestamp = 0, data = {} } }, {
         'Replacement string with timestamp ' .. epoch .. ':',
@@ -1932,7 +1932,7 @@ describe('autoload/shada.vim', function()
       } } }, {
         'History entry with timestamp ' .. epoch .. ':',
         '  # Unexpected type: map instead of array',
-        '  = {="a": [10]}',
+        '  = {"a": [10]}',
       })
       strings2sd_eq({ { type = 4, timestamp = 0, data = {} } }, {
         'History entry with timestamp ' .. epoch .. ':',
@@ -2182,7 +2182,7 @@ describe('autoload/shada.vim', function()
       } } }, {
         'Variable with timestamp ' .. epoch .. ':',
         '  # Unexpected type: map instead of array',
-        '  = {="a": [10]}',
+        '  = {"a": [10]}',
       })
       strings2sd_eq({ { type = 6, timestamp = 0, data = {} } }, {
         'Variable with timestamp ' .. epoch .. ':',
@@ -2313,7 +2313,7 @@ describe('autoload/shada.vim', function()
       } } }, {
         'Buffer list with timestamp ' .. epoch .. ':',
         '  # Unexpected type: map instead of array',
-        '  = {="a": [10]}',
+        '  = {"a": [10]}',
       })
       strings2sd_eq(
         { { type = 9, timestamp = 0, data = {
@@ -2323,7 +2323,7 @@ describe('autoload/shada.vim', function()
         {
           'Buffer list with timestamp ' .. epoch .. ':',
           '  # Expected array of maps',
-          '  = [{="a": 10}, []]',
+          '  = [{"a": 10}, []]',
         }
       )
       strings2sd_eq({ { type = 9, timestamp = 0, data = {
@@ -2419,7 +2419,7 @@ describe('autoload/shada.vim', function()
           timestamp = 0,
           data = {
             { f = 10 },
-            { f = { '!binary', { '\n' } } },
+            { f = { '!string', { '\n' } } },
           },
         },
       }, {
@@ -2953,7 +2953,7 @@ describe('ftplugin/shada.vim', function()
       '    - :s replacement string  "abc\\ndef"',
       '   Buffer list with timestamp ' .. epoch .. ':',
       '    # Expected array of maps',
-      '= [{="a": 10}, []]',
+      '= [{"a": 10}, []]',
       '    Buffer list with timestamp ' .. epoch .. ':',
       '   % Key  Description  Value',
       '  # Expected binary string',
@@ -2990,7 +2990,7 @@ describe('ftplugin/shada.vim', function()
       '  - :s replacement string  "abc\\ndef"',
       'Buffer list with timestamp ' .. epoch .. ':',
       '  # Expected array of maps',
-      '  = [{="a": 10}, []]',
+      '  = [{"a": 10}, []]',
       'Buffer list with timestamp ' .. epoch .. ':',
       '  % Key  Description  Value',
       '  # Expected binary string',
@@ -3053,7 +3053,6 @@ describe('syntax/shada.vim', function()
       [7] = { bold = true, reverse = true },
       [8] = { bold = true, foreground = Screen.colors.Blue },
     }
-    screen:attach()
 
     api.nvim_buf_set_lines(0, 0, 1, true, {
       'Header with timestamp ' .. epoch .. ':',
@@ -3081,7 +3080,7 @@ describe('syntax/shada.vim', function()
       '  - :s replacement string  DEBUG',
       'Buffer list with timestamp ' .. epoch .. ':',
       '  # Expected array of maps',
-      '  = [{="a": +(10)"ac\\0df\\ngi\\"tt\\.", TRUE: FALSE}, [NIL, +(-10)""]]',
+      '  = [{"a": +(10)"ac\\0df\\ngi\\"tt\\.", TRUE: FALSE}, [NIL, +(-10)""]]',
       'Buffer list with timestamp ' .. epoch .. ':',
       '  % Key  Description  Value',
       '',
@@ -3117,8 +3116,8 @@ describe('syntax/shada.vim', function()
        {1: -} {4::s replacement string}  {1:DEBUG}                            |
       {1:Buffer list} with timestamp 1970{1:-}01{1:-}01{1:T}00{1::}00{1::}00:             |
       {4:  # Expected array of maps}                                  |
-        = {1:[{="}{3:a}{1:":} {1:+(}{5:10}{1:)"}{3:ac}{6:\0}{3:df}{6:\n}{3:gi}{6:\"}{3:tt\.}{1:",} {1:TRUE:} {1:FALSE},} {1:[NIL,} {1:+(}{5:-}|
-      {5:10}{1:)""]]}                                                     |
+        = {1:[{"}{3:a}{1:":} {1:+(}{5:10}{1:)"}{3:ac}{6:\0}{3:df}{6:\n}{3:gi}{6:\"}{3:tt\.}{1:",} {1:TRUE:} {1:FALSE},} {1:[NIL,} {1:+(}{5:-1}|
+      {5:0}{1:)""]]}                                                      |
       {1:Buffer list} with timestamp 1970{1:-}01{1:-}01{1:T}00{1::}00{1::}00:             |
       {2:  % Key  Description  Value}                                 |
                                                                   |
@@ -3462,7 +3461,6 @@ describe('syntax/shada.vim', function()
         { { 'ShaDaEntryRawMsgpack' }, '  = ' },
         { { 'ShaDaMsgpackArray', 'ShaDaMsgpackArrayBraces' }, '[' },
         { { 'ShaDaMsgpackArray', 'ShaDaMsgpackMap', 'ShaDaMsgpackMapBraces' }, '{' },
-        { { 'ShaDaMsgpackArray', 'ShaDaMsgpackMap', 'ShaDaMsgpackString' }, '=' },
         {
           {
             'ShaDaMsgpackArray',

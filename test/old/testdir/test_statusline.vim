@@ -220,6 +220,10 @@ func Test_statusline()
   wincmd j
   call assert_match('^\[Preview\],PRV\s*$', s:get_statusline())
   pclose
+  pbuffer
+  wincmd j
+  call assert_match('^\[Preview\],PRV\s*$', s:get_statusline())
+  pclose
 
   " %y: Type of file in the buffer, e.g., "[vim]". See 'filetype'.
   " %Y: Type of file in the buffer, e.g., ",VIM". See 'filetype'.
@@ -417,7 +421,7 @@ func Test_statusline()
   " Test statusline works with 80+ items
   function! StatusLabel()
     redrawstatus
-    return '[label]'	
+    return '[label]'
   endfunc
   let statusline = '%{StatusLabel()}'
   for i in range(150)
@@ -483,14 +487,13 @@ func Test_statusline_removed_group()
     set laststatus=2
     let &statusline = '%#StatColorHi2#%(✓%#StatColorHi2#%) Q≡'
   END
-  call writefile(lines, 'XTest_statusline')
+  call writefile(lines, 'XTest_statusline', 'D')
 
   let buf = RunVimInTerminal('-S XTest_statusline', {'rows': 10, 'cols': 50})
   call VerifyScreenDump(buf, 'Test_statusline_1', {})
 
   " clean up
   call StopVimInTerminal(buf)
-  call delete('XTest_statusline')
 endfunc
 
 func Test_statusline_using_mode()
@@ -501,7 +504,7 @@ func Test_statusline_using_mode()
     split
     setlocal statusline=+%{mode()}+
   END
-  call writefile(lines, 'XTest_statusline')
+  call writefile(lines, 'XTest_statusline', 'D')
 
   let buf = RunVimInTerminal('-S XTest_statusline', {'rows': 7, 'cols': 50})
   call VerifyScreenDump(buf, 'Test_statusline_mode_1', {})
@@ -512,7 +515,6 @@ func Test_statusline_using_mode()
   " clean up
   call term_sendkeys(buf, "close\<CR>")
   call StopVimInTerminal(buf)
-  call delete('XTest_statusline')
 endfunc
 
 func Test_statusline_after_split_vsplit()
@@ -567,13 +569,12 @@ func Test_statusline_highlight_truncate()
     hi! link User2 ErrorMsg
     set statusline=%.5(%1*ABC%2*DEF%1*GHI%)
   END
-  call writefile(lines, 'XTest_statusline')
+  call writefile(lines, 'XTest_statusline', 'D')
 
   let buf = RunVimInTerminal('-S XTest_statusline', {'rows': 6})
   call VerifyScreenDump(buf, 'Test_statusline_hl', {})
 
   call StopVimInTerminal(buf)
-  call delete('XTest_statusline')
 endfunc
 
 func Test_statusline_showcmd()

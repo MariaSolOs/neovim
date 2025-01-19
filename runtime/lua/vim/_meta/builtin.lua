@@ -112,22 +112,11 @@ function vim.rpcrequest(channel, method, ...) end
 --- equal, {a} is greater than {b} or {a} is lesser than {b}, respectively.
 function vim.stricmp(a, b) end
 
---- Convert UTF-32 or UTF-16 {index} to byte index. If {use_utf16} is not
---- supplied, it defaults to false (use UTF-32). Returns the byte index.
----
---- Invalid UTF-8 and NUL is treated like in |vim.str_utfindex()|.
---- An {index} in the middle of a UTF-16 sequence is rounded upwards to
---- the end of that sequence.
---- @param str string
---- @param index number
---- @param use_utf16? any
-function vim.str_byteindex(str, index, use_utf16) end
-
 --- Gets a list of the starting byte positions of each UTF-8 codepoint in the given string.
 ---
 --- Embedded NUL bytes are treated as terminating the string.
 --- @param str string
---- @return table
+--- @return integer[]
 function vim.str_utf_pos(str) end
 
 --- Gets the distance (in bytes) from the starting byte of the codepoint (character) that {index}
@@ -148,8 +137,8 @@ function vim.str_utf_pos(str) end
 --- ```
 ---
 --- @param str string
---- @param index number
---- @return number
+--- @param index integer
+--- @return integer
 function vim.str_utf_start(str, index) end
 
 --- Gets the distance (in bytes) from the last byte of the codepoint (character) that {index} points
@@ -168,22 +157,9 @@ function vim.str_utf_start(str, index) end
 --- ```
 ---
 --- @param str string
---- @param index number
---- @return number
+--- @param index integer
+--- @return integer
 function vim.str_utf_end(str, index) end
-
---- Convert byte index to UTF-32 and UTF-16 indices. If {index} is not
---- supplied, the length of the string is used. All indices are zero-based.
----
---- Embedded NUL bytes are treated as terminating the string. Invalid UTF-8
---- bytes, and embedded surrogates are counted as one code point each. An
---- {index} in the middle of a UTF-8 sequence is rounded upwards to the end of
---- that sequence.
---- @param str string
---- @param index? number
---- @return integer UTF-32 index
---- @return integer UTF-16 index
-function vim.str_utfindex(str, index) end
 
 --- The result is a String, which is the text {str} converted from
 --- encoding {from} to encoding {to}. When the conversion fails `nil` is
@@ -193,15 +169,14 @@ function vim.str_utfindex(str, index) end
 --- can accept, see ":Man 3 iconv".
 ---
 --- @param str string Text to convert
---- @param from number Encoding of {str}
---- @param to number Target encoding
---- @param opts? table<string,any>
---- @return string|nil Converted string if conversion succeeds, `nil` otherwise.
+--- @param from string Encoding of {str}
+--- @param to string Target encoding
+--- @return string? : Converted string if conversion succeeds, `nil` otherwise.
 function vim.iconv(str, from, to, opts) end
 
 --- Schedules {fn} to be invoked soon by the main event-loop. Useful
 --- to avoid |textlock| or other temporary restrictions.
---- @param fn function
+--- @param fn fun()
 function vim.schedule(fn) end
 
 --- Wait for {time} in milliseconds until {callback} returns `true`.
@@ -248,7 +223,7 @@ function vim.schedule(fn) end
 ---     - If {callback} errors, the error is raised.
 function vim.wait(time, callback, interval, fast_only) end
 
---- Attach to ui events, similar to |nvim_ui_attach()| but receive events
+--- Attach to |ui-events|, similar to |nvim_ui_attach()| but receive events
 --- as Lua callback. Can be used to implement screen elements like
 --- popupmenu or message handling in Lua.
 ---
@@ -257,6 +232,11 @@ function vim.wait(time, callback, interval, fast_only) end
 ---
 --- {callback} receives event name plus additional parameters. See |ui-popupmenu|
 --- and the sections below for event format for respective events.
+---
+--- Callbacks for `msg_show` events are executed in |api-fast| context; showing
+--- the message should be scheduled.
+---
+--- Excessive errors inside the callback will result in forced detachment.
 ---
 --- WARNING: This api is considered experimental.  Usability will vary for
 --- different screen elements. In particular `ext_messages` behavior is subject
@@ -281,6 +261,8 @@ function vim.wait(time, callback, interval, fast_only) end
 ---   end
 --- end)
 --- ```
+---
+--- @since 0
 ---
 --- @param ns integer
 --- @param options table<string, any>

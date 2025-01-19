@@ -1,10 +1,11 @@
-local t = require('test.functional.testutil')()
+local t = require('test.testutil')
+local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
 
-local clear = t.clear
-local command = t.command
-local api = t.api
-local feed = t.feed
+local clear = n.clear
+local command = n.command
+local api = n.api
+local feed = n.feed
 local eq = t.eq
 
 describe('matchparen', function()
@@ -13,7 +14,6 @@ describe('matchparen', function()
   before_each(function()
     clear { args = { '-u', 'NORC' } }
     screen = Screen.new(20, 5)
-    screen:attach()
     screen:set_default_attr_ids({
       [0] = { bold = true, foreground = 255 },
       [1] = { bold = true },

@@ -1991,8 +1991,8 @@ msgstr "E146: 正则表达式不能用字母作分界"
 #. Same highlight as wait_return().
 #: ../ex_cmds.c:3952
 #, c-format
-msgid "replace with %s (y/n/a/q/l/^E/^Y)?"
-msgstr "替换为 %s (y/n/a/q/l/^E/^Y)？"
+msgid "replace with %s? (y)es/(n)o/(a)ll/(q)uit/(l)ast/scroll up(^E)/down(^Y)"
+msgstr "替换为 %s？(y)es/(n)o/(a)ll/(q)uit/(l)ast/scroll up(^E)/down(^Y)"
 
 #: ../ex_cmds.c:4462
 msgid "(Interrupted) "
@@ -3716,8 +3716,8 @@ msgid " Omni completion (^O^N^P)"
 msgstr " 全能补全 (^O^N^P)"
 
 #: ../insexpand.c:113
-msgid " Spelling suggestion (s^N^P)"
-msgstr " 拼写建议 (s^N^P)"
+msgid " Spelling suggestion (^S^N^P)"
+msgstr " 拼写建议 (^S^N^P)"
 
 #: ../insexpand.c:114
 msgid " Keyword Local completion (^N^P)"
@@ -4780,8 +4780,8 @@ msgid "(2) An edit session for this file crashed.\n"
 msgstr "(2) 上次编辑此文件时崩溃。\n"
 
 #: ../memline.c:3099
-msgid "    If this is the case, use \":recover\" or \"vim -r "
-msgstr "    如果是这样，请用 \":recover\" 或 \"vim -r "
+msgid "    If this is the case, use \":recover\" or \"nvim -r "
+msgstr "    如果是这样，请用 \":recover\" 或 \"nvim -r "
 
 #: ../memline.c:3101
 msgid ""

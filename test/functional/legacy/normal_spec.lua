@@ -1,11 +1,13 @@
-local t = require('test.functional.testutil')()
+local t = require('test.testutil')
+local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
-local clear = t.clear
-local exec = t.exec
-local feed = t.feed
-local api = t.api
+
+local clear = n.clear
+local exec = n.exec
+local feed = n.feed
+local api = n.api
 local eq = t.eq
-local fn = t.fn
+local fn = n.fn
 
 describe('normal', function()
   local screen
@@ -13,7 +15,6 @@ describe('normal', function()
   before_each(function()
     clear()
     screen = Screen.new(40, 19)
-    screen:attach()
   end)
 
   -- oldtest: Test_normal_j_below_botline()
@@ -100,5 +101,34 @@ describe('normal', function()
                                                 |
       ]],
     })
+  end)
+
+  -- oldtest: Test_normal_gm()
+  it('gm sets curswant correctly', function()
+    screen:try_resize(75, 10)
+    exec([[
+      call setline(1, repeat(["  abcd\tefgh\tij"], 10))
+      call cursor(1, 1)
+    ]])
+    feed('jVjzf')
+    -- gm
+    feed('gmk')
+    eq(18, fn.virtcol('.'))
+    -- g0
+    feed('gj0k')
+    eq(1, fn.virtcol('.'))
+    -- g^
+    feed('jg^k')
+    eq(3, fn.virtcol('.'))
+    exec('call cursor(10, 1)')
+    -- gm
+    feed('gmk')
+    eq(18, fn.virtcol('.'))
+    -- g0
+    feed('gj0k')
+    eq(1, fn.virtcol('.'))
+    -- g^
+    feed('jg^k')
+    eq(3, fn.virtcol('.'))
   end)
 end)

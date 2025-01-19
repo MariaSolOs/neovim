@@ -1,12 +1,14 @@
-local t = require('test.functional.testutil')()
+local t = require('test.testutil')
+local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
-local clear, feed, insert = t.clear, t.feed, t.insert
-local command = t.command
-local feed_command = t.feed_command
+
+local clear, feed, insert = n.clear, n.feed, n.insert
+local command = n.command
+local feed_command = n.feed_command
 local eq = t.eq
-local eval = t.eval
-local fn = t.fn
-local testprg = t.testprg
+local eval = n.eval
+local fn = n.fn
+local testprg = n.testprg
 
 describe('search highlighting', function()
   local screen
@@ -14,7 +16,6 @@ describe('search highlighting', function()
   before_each(function()
     clear()
     screen = Screen.new(40, 7)
-    screen:attach()
     screen:set_default_attr_ids({
       [1] = { bold = true, foreground = Screen.colors.Blue },
       [2] = { background = Screen.colors.Yellow }, -- Search
@@ -195,7 +196,8 @@ describe('search highlighting', function()
       }
     end)
 
-    it('works for multiline match', function()
+    -- oldtest: Test_hlsearch_cursearch()
+    it('works for multiline match, no duplicate highlight', function()
       command([[call setline(1, ['one', 'foo', 'bar', 'baz', 'foo the foo and foo', 'bar'])]])
       feed('gg/foo<CR>')
       screen:expect([[
@@ -279,6 +281,28 @@ describe('search highlighting', function()
         {2:hij}kl                                   |
         /efg\nhij                               |
       ]])
+
+      -- check clearing CurSearch when using it for another match
+      feed('G?^abcd<CR>Y')
+      screen:expect([[
+        ---                                     |
+        {1:abcd}efg                                 |
+        hijkl                                   |
+        ---                                     |
+        {2:^abcd}efg                                 |
+        hijkl                                   |
+        ?^abcd                                  |
+      ]])
+      feed('kkP')
+      screen:expect([[
+        ---                                     |
+        {1:abcd}efg                                 |
+        {2:^abcd}efg                                 |
+        hijkl                                   |
+        ---                                     |
+        {1:abcd}efg                                 |
+        ?^abcd                                  |
+      ]])
     end)
   end)
 
@@ -343,12 +367,19 @@ describe('search highlighting', function()
       bar baz foo
       bar foo baz]])
     feed('/foo')
+    screen:set_default_attr_ids({
+      [1] = { bold = true, foreground = Screen.colors.Blue },
+      [2] = { background = Screen.colors.Yellow }, -- Search
+      [3] = { reverse = true },
+      [4] = { bold = true, reverse = true },
+      [5] = { foreground = Screen.colors.White, background = Screen.colors.DarkGreen },
+    })
     screen:expect([[
       {3:foo} bar baz         │{MATCH:%d+}: {2:foo}{MATCH:%s+}|
       bar baz {2:foo}         │{MATCH:%d+}: {2:foo}{MATCH:%s+}|
       bar {2:foo} baz         │{MATCH:%d+}: {2:foo}{MATCH:%s+}|
       {1:~                   }│{MATCH:.*}|*2
-      {5:[No Name] [+]        }{3:term               }|
+      {4:[No Name] [+]        }{5:term               }|
       /foo^                                    |
     ]])
   end)

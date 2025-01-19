@@ -58,11 +58,11 @@ typedef struct {
 /// Values for index in highlight_attr[].
 /// When making changes, also update hlf_names in highlight.h!
 typedef enum {
-  HLF_8 = 0,      ///< Meta & special keys listed with ":map", text that is
+  HLF_NONE = 0,   ///< no UI highlight active
+  HLF_8,          ///< Meta & special keys listed with ":map", text that is
                   ///< displayed different from what it is
   HLF_EOB,        ///< after the last line in the buffer
   HLF_TERM,       ///< terminal cursor focused
-  HLF_TERMNC,     ///< terminal cursor unfocused
   HLF_AT,         ///< @ characters at end of screen, characters that don't really exist in the text
   HLF_D,          ///< directories in CTRL-D listing
   HLF_E,          ///< error messages
@@ -101,6 +101,8 @@ typedef enum {
   HLF_SPL,        ///< SpellLocal
   HLF_PNI,        ///< popup menu normal item
   HLF_PSI,        ///< popup menu selected item
+  HLF_PMNI,       ///< popup menu matched text in normal item
+  HLF_PMSI,       ///< popup menu matched text in selected item
   HLF_PNK,        ///< popup menu normal item "kind"
   HLF_PSK,        ///< popup menu selected item "kind"
   HLF_PNX,        ///< popup menu normal item "menu" (extra text)
@@ -125,6 +127,8 @@ typedef enum {
   HLF_CU,         ///< Cursor
   HLF_BTITLE,     ///< Float Border Title
   HLF_BFOOTER,    ///< Float Border Footer
+  HLF_TS,         ///< status line for terminal window
+  HLF_TSNC,       ///< status line for non-current terminal window
   HLF_COUNT,      ///< MUST be the last one
 } hlf_T;
 

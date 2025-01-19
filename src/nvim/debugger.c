@@ -13,6 +13,7 @@
 #include "nvim/cmdexpand_defs.h"
 #include "nvim/debugger.h"
 #include "nvim/drawscreen.h"
+#include "nvim/errors.h"
 #include "nvim/eval.h"
 #include "nvim/eval/typval.h"
 #include "nvim/eval/typval_defs.h"
@@ -152,8 +153,7 @@ void do_debug(char *cmd)
     debug_break_level = -1;
 
     xfree(cmdline);
-    cmdline = getcmdline_prompt('>', NULL, 0, EXPAND_NOTHING, NULL,
-                                CALLBACK_NONE);
+    cmdline = getcmdline_prompt('>', NULL, 0, EXPAND_NOTHING, NULL, CALLBACK_NONE, false, NULL);
 
     debug_break_level = n;
     if (typeahead_saved) {

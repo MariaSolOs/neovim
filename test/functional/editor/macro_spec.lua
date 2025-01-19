@@ -1,14 +1,15 @@
-local t = require('test.functional.testutil')()
+local t = require('test.testutil')
+local n = require('test.functional.testnvim')()
 
 local eq = t.eq
-local eval = t.eval
-local feed = t.feed
-local clear = t.clear
-local expect = t.expect
-local command = t.command
-local fn = t.fn
-local api = t.api
-local insert = t.insert
+local eval = n.eval
+local feed = n.feed
+local clear = n.clear
+local expect = n.expect
+local command = n.command
+local fn = n.fn
+local api = n.api
+local insert = n.insert
 
 describe('macros with default mappings', function()
   before_each(function()
@@ -132,6 +133,23 @@ helloFOO]]
   end)
 
   it('can be recorded and replayed in Visual mode', function()
+    insert('foo BAR BAR foo BAR foo BAR BAR BAR foo BAR BAR')
+    feed('0vqifofRq')
+    eq({ 0, 1, 7, 0 }, fn.getpos('.'))
+    eq({ 0, 1, 1, 0 }, fn.getpos('v'))
+    feed('Q')
+    eq({ 0, 1, 19, 0 }, fn.getpos('.'))
+    eq({ 0, 1, 1, 0 }, fn.getpos('v'))
+    feed('Q')
+    eq({ 0, 1, 27, 0 }, fn.getpos('.'))
+    eq({ 0, 1, 1, 0 }, fn.getpos('v'))
+    feed('@i')
+    eq({ 0, 1, 43, 0 }, fn.getpos('.'))
+    eq({ 0, 1, 1, 0 }, fn.getpos('v'))
+  end)
+
+  it('can be recorded and replayed in Visual mode when ignorecase', function()
+    command('set ignorecase')
     insert('foo BAR BAR foo BAR foo BAR BAR BAR foo BAR BAR')
     feed('0vqifofRq')
     eq({ 0, 1, 7, 0 }, fn.getpos('.'))

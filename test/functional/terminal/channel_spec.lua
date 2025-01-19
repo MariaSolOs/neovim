@@ -1,17 +1,19 @@
-local t = require('test.functional.testutil')()
+local t = require('test.testutil')
+local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
-local clear = t.clear
+
+local clear = n.clear
 local eq = t.eq
-local eval = t.eval
-local command = t.command
+local eval = n.eval
+local command = n.command
 local pcall_err = t.pcall_err
-local feed = t.feed
-local poke_eventloop = t.poke_eventloop
+local feed = n.feed
+local poke_eventloop = n.poke_eventloop
 local is_os = t.is_os
-local api = t.api
-local async_meths = t.async_meths
-local testprg = t.testprg
-local assert_alive = t.assert_alive
+local api = n.api
+local async_meths = n.async_meths
+local testprg = n.testprg
+local assert_alive = n.assert_alive
 
 describe('terminal channel is closed and later released if', function()
   local screen
@@ -19,7 +21,6 @@ describe('terminal channel is closed and later released if', function()
   before_each(function()
     clear()
     screen = Screen.new()
-    screen:attach()
   end)
 
   it('opened by nvim_open_term() and deleted by :bdelete!', function()
@@ -74,8 +75,8 @@ describe('terminal channel is closed and later released if', function()
     eq(chans - 1, eval('len(nvim_list_chans())'))
   end)
 
-  it('opened by termopen(), exited, and deleted by pressing a key', function()
-    command([[let id = termopen('echo')]])
+  it('opened by jobstart(…,{term=true}), exited, and deleted by pressing a key', function()
+    command([[let id = jobstart('echo',{'term':v:true})]])
     local chans = eval('len(nvim_list_chans())')
     -- wait for process to exit
     screen:expect({ any = '%[Process exited 0%]' })
@@ -95,8 +96,8 @@ describe('terminal channel is closed and later released if', function()
   end)
 
   -- This indirectly covers #16264
-  it('opened by termopen(), exited, and deleted by :bdelete', function()
-    command([[let id = termopen('echo')]])
+  it('opened by jobstart(…,{term=true}), exited, and deleted by :bdelete', function()
+    command([[let id = jobstart('echo', {'term':v:true})]])
     local chans = eval('len(nvim_list_chans())')
     -- wait for process to exit
     screen:expect({ any = '%[Process exited 0%]' })
@@ -120,11 +121,10 @@ end)
 it('chansend sends lines to terminal channel in proper order', function()
   clear({ args = { '--cmd', 'set laststatus=2' } })
   local screen = Screen.new(100, 20)
-  screen:attach()
   screen._default_attr_ids = nil
   local shells = is_os('win') and { 'cmd.exe', 'pwsh.exe -nop', 'powershell.exe -nop' } or { 'sh' }
   for _, sh in ipairs(shells) do
-    command([[let id = termopen(']] .. sh .. [[')]])
+    command([[let id = jobstart(']] .. sh .. [[', {'term':v:true})]])
     command([[call chansend(id, ['echo "hello"', 'echo "world"', ''])]])
     screen:expect {
       any = [[echo "hello".*echo "world"]],
@@ -147,10 +147,9 @@ describe('no crash when TermOpen autocommand', function()
     screen:set_default_attr_ids({
       [0] = { bold = true, foreground = Screen.colors.Blue },
     })
-    screen:attach()
   end)
 
-  it('processes job exit event when using termopen()', function()
+  it('processes job exit event when using jobstart(…,{term=true})', function()
     command([[autocmd TermOpen * call input('')]])
     async_meths.nvim_command('terminal foobar')
     screen:expect {
@@ -180,7 +179,7 @@ describe('no crash when TermOpen autocommand', function()
     assert_alive()
   end)
 
-  it('wipes buffer and processes events when using termopen()', function()
+  it('wipes buffer and processes events when using jobstart(…,{term=true})', function()
     command([[autocmd TermOpen * bwipe! | call input('')]])
     async_meths.nvim_command('terminal foobar')
     screen:expect {
@@ -229,7 +228,6 @@ describe('nvim_open_term', function()
   before_each(function()
     clear()
     screen = Screen.new(8, 10)
-    screen:attach()
   end)
 
   it('with force_crlf=true converts newlines', function()

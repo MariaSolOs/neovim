@@ -1,15 +1,17 @@
 -- Test suite for testing interactions with API bindings
-local t = require('test.functional.testutil')()
+local t = require('test.testutil')
+local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
-local fn = t.fn
-local api = t.api
-local clear = t.clear
+
+local fn = n.fn
+local api = n.api
+local clear = n.clear
 local sleep = vim.uv.sleep
-local feed = t.feed
+local feed = n.feed
 local eq = t.eq
-local eval = t.eval
+local eval = n.eval
 local matches = t.matches
-local exec_lua = t.exec_lua
+local exec_lua = n.exec_lua
 local retry = t.retry
 
 before_each(clear)
@@ -23,30 +25,34 @@ describe('vim.uv', function()
   it('timer', function()
     exec_lua('vim.api.nvim_set_var("coroutine_cnt", 0)', {})
 
-    local code = [[
+    local code = function()
       local touch = 0
       local function wait(ms)
         local this = coroutine.running()
         assert(this)
-        local timer = vim.uv.new_timer()
-        timer:start(ms, 0, vim.schedule_wrap(function ()
-          timer:close()
-          touch = touch + 1
-          coroutine.resume(this)
-          touch = touch + 1
-          assert(touch==3)
-          vim.api.nvim_set_var("coroutine_cnt_1", touch)
-        end))
+        local timer = assert(vim.uv.new_timer())
+        timer:start(
+          ms,
+          0,
+          vim.schedule_wrap(function()
+            timer:close()
+            touch = touch + 1
+            coroutine.resume(this)
+            touch = touch + 1
+            assert(touch == 3)
+            vim.api.nvim_set_var('coroutine_cnt_1', touch)
+          end)
+        )
         coroutine.yield()
         touch = touch + 1
         return touch
       end
       coroutine.wrap(function()
         local touched = wait(10)
-        assert(touched==touch)
-        vim.api.nvim_set_var("coroutine_cnt", touched)
+        assert(touched == touch)
+        vim.api.nvim_set_var('coroutine_cnt', touched)
       end)()
-    ]]
+    end
 
     eq(0, api.nvim_get_var('coroutine_cnt'))
     exec_lua(code)
@@ -59,7 +65,6 @@ describe('vim.uv', function()
 
   it('is API safe', function()
     local screen = Screen.new(50, 10)
-    screen:attach()
     screen:set_default_attr_ids({
       [1] = { bold = true, foreground = Screen.colors.Blue1 },
       [2] = { bold = true, reverse = true },
@@ -82,9 +87,9 @@ describe('vim.uv', function()
     screen:expect([[
                                                         |
       {2:                                                  }|
-      {3:Error executing luv callback:}                     |
+      {3:Error executing callback:}                         |
       {3:[string "<nvim>"]:5: E5560: nvim_set_var must not }|
-      {3:be called in a lua loop callback}                  |
+      {3:be called in a fast event context}                 |
       {3:stack traceback:}                                  |
       {3:        [C]: in function 'nvim_set_var'}           |
       {3:        [string "<nvim>"]:5: in function <[string }|
@@ -97,15 +102,19 @@ describe('vim.uv', function()
 
     -- callbacks can be scheduled to be executed in the main event loop
     -- where the entire API is available
-    exec_lua([[
-      local timer = vim.uv.new_timer()
-      timer:start(20, 0, vim.schedule_wrap(function ()
-        _G.is_fast = vim.in_fast_event()
-        timer:close()
-        vim.api.nvim_set_var("valid", true)
-        vim.api.nvim_command("echomsg 'howdy'")
-      end))
-    ]])
+    exec_lua(function()
+      local timer = assert(vim.uv.new_timer())
+      timer:start(
+        20,
+        0,
+        vim.schedule_wrap(function()
+          _G.is_fast = vim.in_fast_event()
+          timer:close()
+          vim.api.nvim_set_var('valid', true)
+          vim.api.nvim_command("echomsg 'howdy'")
+        end)
+      )
+    end)
 
     screen:expect([[
       ^                                                  |
@@ -116,21 +125,35 @@ describe('vim.uv', function()
     eq(false, exec_lua('return _G.is_fast'))
 
     -- fast (not deferred) API functions are allowed to be called directly
-    exec_lua([[
-      local timer = vim.uv.new_timer()
-      timer:start(20, 0, function ()
+    exec_lua(function()
+      local timer = assert(vim.uv.new_timer())
+      timer:start(20, 0, function()
         timer:close()
         -- input is queued for processing after the callback returns
-        vim.api.nvim_input("isneaky")
+        vim.api.nvim_input('isneaky')
         _G.mode = vim.api.nvim_get_mode()
       end)
-    ]])
+    end)
     screen:expect([[
       sneaky^                                            |
       {1:~                                                 }|*8
       {5:-- INSERT --}                                      |
     ]])
     eq({ blocking = false, mode = 'n' }, exec_lua('return _G.mode'))
+
+    exec_lua(function()
+      local timer = assert(vim.uv.new_timer())
+      timer:start(20, 0, function()
+        _G.is_fast = vim.in_fast_event()
+        timer:close()
+        _G.value = vim.fn.has('nvim-0.5')
+        _G.unvalue = vim.fn.has('python3')
+      end)
+    end)
+
+    screen:expect({ any = [[{3:Vim:E5560: Vimscript function must not be called i}]] })
+    feed('<cr>')
+    eq({ 1, nil }, exec_lua('return {_G.value, _G.unvalue}'))
   end)
 
   it("is equal to require('luv')", function()

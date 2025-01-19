@@ -16,21 +16,15 @@ local function shell_quote(str)
   return str
 end
 
+--- Functions executing in the context of the test runner (not the current nvim test session).
 --- @class test.testutil
-local module = {
+local M = {
   paths = Paths,
 }
 
---- @param p string
---- @return string
-local function relpath(p)
-  p = vim.fs.normalize(p)
-  return (p:gsub('^' .. uv.cwd, ''))
-end
-
 --- @param path string
 --- @return boolean
-function module.isdir(path)
+function M.isdir(path)
   if not path then
     return false
   end
@@ -41,9 +35,33 @@ function module.isdir(path)
   return stat.type == 'directory'
 end
 
+--- (Only on Windows) Replaces yucky "\\" slashes with delicious "/" slashes in a string, or all
+--- string values in a table (recursively).
+---
+--- @generic T: string|table
+--- @param obj T
+--- @return T|nil
+function M.fix_slashes(obj)
+  if not M.is_os('win') then
+    return obj
+  end
+  if type(obj) == 'string' then
+    local ret = string.gsub(obj, '\\', '/')
+    return ret
+  elseif type(obj) == 'table' then
+    --- @cast obj table<any,any>
+    local ret = {} --- @type table<any,any>
+    for k, v in pairs(obj) do
+      ret[k] = M.fix_slashes(v)
+    end
+    return ret
+  end
+  assert(false, 'expected string or table of strings, got ' .. type(obj))
+end
+
 --- @param ... string|string[]
 --- @return string
-function module.argss_to_cmd(...)
+function M.argss_to_cmd(...)
   local cmd = {} --- @type string[]
   for i = 1, select('#', ...) do
     local arg = select(i, ...)
@@ -59,8 +77,8 @@ function module.argss_to_cmd(...)
   return table.concat(cmd, ' ')
 end
 
-function module.popen_r(...)
-  return io.popen(module.argss_to_cmd(...), 'r')
+function M.popen_r(...)
+  return io.popen(M.argss_to_cmd(...), 'r')
 end
 
 --- Calls fn() until it succeeds, up to `max` times or until `max_ms`
@@ -69,7 +87,7 @@ end
 --- @param max_ms integer?
 --- @param fn function
 --- @return any
-function module.retry(max, max_ms, fn)
+function M.retry(max, max_ms, fn)
   luaassert(max == nil or max > 0)
   luaassert(max_ms == nil or max_ms > 0)
   local tries = 1
@@ -96,10 +114,10 @@ local check_logs_useless_lines = {
   ['See README_MISSING_SYSCALL_OR_IOCTL for guidance'] = 3,
 }
 
-function module.eq(expected, actual, context)
+function M.eq(expected, actual, context)
   return luaassert.are.same(expected, actual, context)
 end
-function module.neq(expected, actual, context)
+function M.neq(expected, actual, context)
   return luaassert.are_not.same(expected, actual, context)
 end
 
@@ -108,7 +126,7 @@ end
 --- @param cond (boolean) expression to assert
 --- @param expected (any) description of expected result
 --- @param actual (any) description of actual result
-function module.ok(cond, expected, actual)
+function M.ok(cond, expected, actual)
   luaassert(
     (not expected and not actual) or (expected and actual),
     'if "expected" is given, "actual" is also required'
@@ -122,14 +140,14 @@ local function epicfail(state, arguments, _)
   return false
 end
 luaassert:register('assertion', 'epicfail', epicfail)
-function module.fail(msg)
+function M.fail(msg)
   return luaassert.epicfail(msg)
 end
 
 --- @param pat string
 --- @param actual string
 --- @return boolean
-function module.matches(pat, actual)
+function M.matches(pat, actual)
   if nil ~= string.match(actual, pat) then
     return true
   end
@@ -142,16 +160,16 @@ end
 ---
 ---@param pat (string) Lua pattern to match lines in the log file
 ---@param logfile? (string) Full path to log file (default=$NVIM_LOG_FILE)
----@param nrlines? (number) Search up to this many log lines
+---@param nrlines? (number) Search up to this many log lines (default 10)
 ---@param inverse? (boolean) Assert that the pattern does NOT match.
-function module.assert_log(pat, logfile, nrlines, inverse)
+function M.assert_log(pat, logfile, nrlines, inverse)
   logfile = logfile or os.getenv('NVIM_LOG_FILE') or '.nvimlog'
   luaassert(logfile ~= nil, 'no logfile')
   nrlines = nrlines or 10
   inverse = inverse or false
 
-  module.retry(nil, 1000, function()
-    local lines = module.read_file_list(logfile, -nrlines) or {}
+  M.retry(nil, 1000, function()
+    local lines = M.read_file_list(logfile, -nrlines) or {}
     local msg = string.format(
       'Pattern %q %sfound in log (last %d lines): %s:\n%s',
       pat,
@@ -181,14 +199,14 @@ end
 --- @param pat (string) Lua pattern to match lines in the log file
 --- @param logfile? (string) Full path to log file (default=$NVIM_LOG_FILE)
 --- @param nrlines? (number) Search up to this many log lines
-function module.assert_nolog(pat, logfile, nrlines)
-  return module.assert_log(pat, logfile, nrlines, true)
+function M.assert_nolog(pat, logfile, nrlines)
+  return M.assert_log(pat, logfile, nrlines, true)
 end
 
 --- @param fn fun(...): any
 --- @param ... any
 --- @return boolean, any
-function module.pcall(fn, ...)
+function M.pcall(fn, ...)
   luaassert(type(fn) == 'function')
   local status, rv = pcall(fn, ...)
   if status then
@@ -237,9 +255,9 @@ end
 --
 --- @param fn function
 --- @return string
-function module.pcall_err_withfile(fn, ...)
+function M.pcall_err_withfile(fn, ...)
   luaassert(type(fn) == 'function')
-  local status, rv = module.pcall(fn, ...)
+  local status, rv = M.pcall(fn, ...)
   if status == true then
     error('expected failure, but got success')
   end
@@ -249,12 +267,12 @@ end
 --- @param fn function
 --- @param ... any
 --- @return string
-function module.pcall_err_withtrace(fn, ...)
-  local errmsg = module.pcall_err_withfile(fn, ...)
+function M.pcall_err_withtrace(fn, ...)
+  local errmsg = M.pcall_err_withfile(fn, ...)
 
   return (
     errmsg
-      :gsub('^%.%.%./testutil%.lua:0: ', '')
+      :gsub('^%.%.%./testnvim%.lua:0: ', '')
       :gsub('^Error executing lua:- ', '')
       :gsub('^%[string "<nvim>"%]:0: ', '')
   )
@@ -263,20 +281,20 @@ end
 --- @param fn function
 --- @param ... any
 --- @return string
-function module.pcall_err(fn, ...)
-  return module.remove_trace(module.pcall_err_withtrace(fn, ...))
+function M.pcall_err(fn, ...)
+  return M.remove_trace(M.pcall_err_withtrace(fn, ...))
 end
 
 --- @param s string
 --- @return string
-function module.remove_trace(s)
+function M.remove_trace(s)
   return (s:gsub('\n%s*stack traceback:.*', ''))
 end
 
 -- initial_path:  directory to recurse into
 -- re:            include pattern (string)
 -- exc_re:        exclude pattern(s) (string or table)
-function module.glob(initial_path, re, exc_re)
+function M.glob(initial_path, re, exc_re)
   exc_re = type(exc_re) == 'table' and exc_re or { exc_re }
   local paths_to_check = { initial_path } --- @type string[]
   local ret = {} --- @type string[]
@@ -318,10 +336,10 @@ function module.glob(initial_path, re, exc_re)
   return ret
 end
 
-function module.check_logs()
+function M.check_logs()
   local log_dir = os.getenv('LOG_DIR')
   local runtime_errors = {}
-  if log_dir and module.isdir(log_dir) then
+  if log_dir and M.isdir(log_dir) then
     for tail in vim.fs.dir(log_dir) do
       if tail:sub(1, 30) == 'valgrind-' or tail:find('san%.') then
         local file = log_dir .. '/' .. tail
@@ -343,7 +361,7 @@ function module.check_logs()
           local status, f
           local out = io.stdout
           if os.getenv('SYMBOLIZER') then
-            status, f = pcall(module.popen_r, os.getenv('SYMBOLIZER'), '-l', file)
+            status, f = pcall(M.popen_r, os.getenv('SYMBOLIZER'), '-l', file)
           end
           out:write(start_msg .. '\n')
           if status then
@@ -368,60 +386,73 @@ function module.check_logs()
   )
 end
 
-function module.sysname()
-  return uv.os_uname().sysname:lower()
-end
+local sysname = uv.os_uname().sysname:lower()
 
---- @param s 'win'|'mac'|'freebsd'|'openbsd'|'bsd'
+--- @param s 'win'|'mac'|'linux'|'freebsd'|'openbsd'|'bsd'
 --- @return boolean
-function module.is_os(s)
-  if not (s == 'win' or s == 'mac' or s == 'freebsd' or s == 'openbsd' or s == 'bsd') then
+function M.is_os(s)
+  if
+    not (s == 'win' or s == 'mac' or s == 'linux' or s == 'freebsd' or s == 'openbsd' or s == 'bsd')
+  then
     error('unknown platform: ' .. tostring(s))
   end
   return not not (
-    (s == 'win' and (module.sysname():find('windows') or module.sysname():find('mingw')))
-    or (s == 'mac' and module.sysname() == 'darwin')
-    or (s == 'freebsd' and module.sysname() == 'freebsd')
-    or (s == 'openbsd' and module.sysname() == 'openbsd')
-    or (s == 'bsd' and module.sysname():find('bsd'))
+    (s == 'win' and (sysname:find('windows') or sysname:find('mingw')))
+    or (s == 'mac' and sysname == 'darwin')
+    or (s == 'linux' and sysname == 'linux')
+    or (s == 'freebsd' and sysname == 'freebsd')
+    or (s == 'openbsd' and sysname == 'openbsd')
+    or (s == 'bsd' and sysname:find('bsd'))
   )
 end
 
-local function tmpdir_get()
-  return os.getenv('TMPDIR') and os.getenv('TMPDIR') or os.getenv('TEMP')
-end
+local architecture = uv.os_uname().machine
 
---- Is temp directory `dir` defined local to the project workspace?
---- @param dir string?
+--- @param s 'x86_64'|'arm64'
 --- @return boolean
-local function tmpdir_is_local(dir)
-  return not not (dir and dir:find('Xtest'))
+function M.is_arch(s)
+  if not (s == 'x86_64' or s == 'arm64') then
+    error('unknown architecture: ' .. tostring(s))
+  end
+  return s == architecture
 end
 
 local tmpname_id = 0
-local tmpdir = tmpdir_get()
+local tmpdir = os.getenv('TMPDIR') or os.getenv('TEMP')
+local tmpdir_is_local = not not (tmpdir and tmpdir:find('Xtest'))
 
---- Creates a new temporary file for use by tests.
-function module.tmpname()
-  if tmpdir_is_local(tmpdir) then
+local function get_tmpname()
+  if tmpdir_is_local then
     -- Cannot control os.tmpname() dir, so hack our own tmpname() impl.
     tmpname_id = tmpname_id + 1
     -- "…/Xtest_tmpdir/T42.7"
-    local fname = ('%s/%s.%d'):format(tmpdir, (_G._nvim_test_id or 'nvim-test'), tmpname_id)
-    io.open(fname, 'w'):close()
-    return fname
+    return ('%s/%s.%d'):format(tmpdir, (_G._nvim_test_id or 'nvim-test'), tmpname_id)
   end
 
   local fname = os.tmpname()
-  if module.is_os('win') and fname:sub(1, 2) == '\\s' then
+
+  if M.is_os('win') and fname:sub(1, 2) == '\\s' then
     -- In Windows tmpname() returns a filename starting with
     -- special sequence \s, prepend $TEMP path
     return tmpdir .. fname
-  elseif module.is_os('mac') and fname:match('^/tmp') then
+  elseif M.is_os('mac') and fname:match('^/tmp') then
     -- In OS X /tmp links to /private/tmp
     return '/private' .. fname
   end
+  return fname
+end
 
+--- Generates a unique filepath for use by tests, in a test-specific "…/Xtest_tmpdir/T42.7"
+--- directory (which is cleaned up by the test runner).
+---
+--- @param create? boolean (default true) Create the file.
+--- @return string
+function M.tmpname(create)
+  local fname = get_tmpname()
+  os.remove(fname)
+  if create ~= false then
+    assert(io.open(fname, 'w')):close()
+  end
   return fname
 end
 
@@ -432,7 +463,7 @@ end
 
 local tests_skipped = 0
 
-function module.check_cores(app, force) -- luacheck: ignore
+function M.check_cores(app, force) -- luacheck: ignore
   -- Temporary workaround: skip core check as it interferes with CI.
   if true then
     return
@@ -446,11 +477,12 @@ function module.check_cores(app, force) -- luacheck: ignore
   local random_skip = false
   -- Workspace-local $TMPDIR, scrubbed and pattern-escaped.
   -- "./Xtest-tmpdir/" => "Xtest%-tmpdir"
-  local local_tmpdir = (
-    tmpdir_is_local(tmpdir_get())
-      and relpath(tmpdir_get()):gsub('^[ ./]+', ''):gsub('%/+$', ''):gsub('([^%w])', '%%%1')
-    or nil
-  )
+  local local_tmpdir = nil
+  if tmpdir_is_local and tmpdir then
+    local_tmpdir =
+      vim.pesc(vim.fs.relpath(assert(vim.uv.cwd()), tmpdir):gsub('^[ ./]+', ''):gsub('%/+$', ''))
+  end
+
   local db_cmd --- @type string
   local test_glob_dir = os.getenv('NVIM_TEST_CORE_GLOB_DIRECTORY')
   if test_glob_dir and test_glob_dir ~= '' then
@@ -459,14 +491,14 @@ function module.check_cores(app, force) -- luacheck: ignore
     exc_re = { os.getenv('NVIM_TEST_CORE_EXC_RE'), local_tmpdir }
     db_cmd = os.getenv('NVIM_TEST_CORE_DB_CMD') or gdb_db_cmd
     random_skip = os.getenv('NVIM_TEST_CORE_RANDOM_SKIP') ~= ''
-  elseif module.is_os('mac') then
+  elseif M.is_os('mac') then
     initial_path = '/cores'
     re = nil
     exc_re = { local_tmpdir }
     db_cmd = lldb_db_cmd
   else
     initial_path = '.'
-    if module.is_os('freebsd') then
+    if M.is_os('freebsd') then
       re = '/nvim.core$'
     else
       re = '/core[^/]*$'
@@ -480,7 +512,7 @@ function module.check_cores(app, force) -- luacheck: ignore
     tests_skipped = tests_skipped + 1
     return
   end
-  local cores = module.glob(initial_path, re, exc_re)
+  local cores = M.glob(initial_path, re, exc_re)
   local found_cores = 0
   local out = io.stdout
   for _, core in ipairs(cores) do
@@ -503,23 +535,23 @@ function module.check_cores(app, force) -- luacheck: ignore
 end
 
 --- @return string?
-function module.repeated_read_cmd(...)
+function M.repeated_read_cmd(...)
   for _ = 1, 10 do
-    local stream = module.popen_r(...)
+    local stream = M.popen_r(...)
     local ret = stream:read('*a')
     stream:close()
     if ret then
       return ret
     end
   end
-  print('ERROR: Failed to execute ' .. module.argss_to_cmd(...) .. ': nil return after 10 attempts')
+  print('ERROR: Failed to execute ' .. M.argss_to_cmd(...) .. ': nil return after 10 attempts')
   return nil
 end
 
 --- @generic T
 --- @param orig T
 --- @return T
-function module.shallowcopy(orig)
+function M.shallowcopy(orig)
   if type(orig) ~= 'table' then
     return orig
   end
@@ -534,13 +566,13 @@ end
 --- @param d1 table<any,any>
 --- @param d2 table<any,any>
 --- @return table<any,any>
-function module.mergedicts_copy(d1, d2)
-  local ret = module.shallowcopy(d1)
+function M.mergedicts_copy(d1, d2)
+  local ret = M.shallowcopy(d1)
   for k, v in pairs(d2) do
     if d2[k] == vim.NIL then
       ret[k] = nil
     elseif type(d1[k]) == 'table' and type(v) == 'table' then
-      ret[k] = module.mergedicts_copy(d1[k], v)
+      ret[k] = M.mergedicts_copy(d1[k], v)
     else
       ret[k] = v
     end
@@ -553,7 +585,7 @@ end
 --- Note: does not do copies of d2 values used.
 --- @param d1 table<any,any>
 --- @param d2 table<any,any>
-function module.dictdiff(d1, d2)
+function M.dictdiff(d1, d2)
   local ret = {} --- @type table<any,any>
   local hasdiff = false
   for k, v in pairs(d1) do
@@ -562,7 +594,7 @@ function module.dictdiff(d1, d2)
       ret[k] = vim.NIL
     elseif type(v) == type(d2[k]) then
       if type(v) == 'table' then
-        local subdiff = module.dictdiff(v, d2[k])
+        local subdiff = M.dictdiff(v, d2[k])
         if subdiff ~= nil then
           hasdiff = true
           ret[k] = subdiff
@@ -576,7 +608,7 @@ function module.dictdiff(d1, d2)
       hasdiff = true
     end
   end
-  local shallowcopy = module.shallowcopy
+  local shallowcopy = M.shallowcopy
   for k, v in pairs(d2) do
     if d1[k] == nil then
       ret[k] = shallowcopy(v)
@@ -591,7 +623,7 @@ function module.dictdiff(d1, d2)
 end
 
 -- Concat list-like tables.
-function module.concat_tables(...)
+function M.concat_tables(...)
   local ret = {} --- @type table<any,any>
   for i = 1, select('#', ...) do
     --- @type table<any,any>
@@ -608,7 +640,7 @@ end
 --- @param str string
 --- @param leave_indent? integer
 --- @return string
-function module.dedent(str, leave_indent)
+function M.dedent(str, leave_indent)
   -- find minimum common indent across lines
   local indent --- @type string?
   for line in str:gmatch('[^\n]+') do
@@ -633,14 +665,14 @@ function module.dedent(str, leave_indent)
   return str
 end
 
-function module.intchar2lua(ch)
+function M.intchar2lua(ch)
   ch = tonumber(ch)
   return (20 <= ch and ch < 127) and ('%c'):format(ch) or ch
 end
 
 --- @param str string
 --- @return string
-function module.hexdump(str)
+function M.hexdump(str)
   local len = string.len(str)
   local dump = ''
   local hex = ''
@@ -669,7 +701,7 @@ end
 --- @param filename string path to file
 --- @param start? integer start line (1-indexed), negative means "lines before end" (tail)
 --- @return string[]?
-function module.read_file_list(filename, start)
+function M.read_file_list(filename, start)
   local lnum = (start ~= nil and type(start) == 'number') and start or 1
   local tail = (lnum < 0)
   local maxlines = tail and math.abs(lnum) or nil
@@ -707,7 +739,7 @@ end
 --- Reads the entire contents of `filename` into a string.
 --- @param filename string
 --- @return string?
-function module.read_file(filename)
+function M.read_file(filename)
   local file = io.open(filename, 'r')
   if not file then
     return nil
@@ -718,7 +750,7 @@ function module.read_file(filename)
 end
 
 -- Dedent the given text and write it to the file name.
-function module.write_file(name, text, no_dedent, append)
+function M.write_file(name, text, no_dedent, append)
   local file = assert(io.open(name, (append and 'a' or 'w')))
   if type(text) == 'table' then
     -- Byte blob
@@ -729,7 +761,7 @@ function module.write_file(name, text, no_dedent, append)
       text = ('%s%c'):format(text, char)
     end
   elseif not no_dedent then
-    text = module.dedent(text)
+    text = M.dedent(text)
   end
   file:write(text)
   file:flush()
@@ -738,7 +770,7 @@ end
 
 --- @param name? 'cirrus'|'github'
 --- @return boolean
-function module.is_ci(name)
+function M.is_ci(name)
   local any = (name == nil)
   luaassert(any or name == 'github' or name == 'cirrus')
   local gh = ((any or name == 'github') and nil ~= os.getenv('GITHUB_ACTIONS'))
@@ -748,11 +780,11 @@ end
 
 -- Gets the (tail) contents of `logfile`.
 -- Also moves the file to "${NVIM_LOG_FILE}.displayed" on CI environments.
-function module.read_nvim_log(logfile, ci_rename)
+function M.read_nvim_log(logfile, ci_rename)
   logfile = logfile or os.getenv('NVIM_LOG_FILE') or '.nvimlog'
-  local is_ci = module.is_ci()
+  local is_ci = M.is_ci()
   local keep = is_ci and 100 or 10
-  local lines = module.read_file_list(logfile, -keep) or {}
+  local lines = M.read_file_list(logfile, -keep) or {}
   local log = (
     ('-'):rep(78)
     .. '\n'
@@ -771,9 +803,59 @@ end
 
 --- @param path string
 --- @return boolean?
-function module.mkdir(path)
+function M.mkdir(path)
   -- 493 is 0755 in decimal
   return (uv.fs_mkdir(path, 493))
 end
 
-return module
+--- @param expected any[]
+--- @param received any[]
+--- @param kind string
+--- @return any
+function M.expect_events(expected, received, kind)
+  if not pcall(M.eq, expected, received) then
+    local msg = 'unexpected ' .. kind .. ' received.\n\n'
+
+    msg = msg .. 'received events:\n'
+    for _, e in ipairs(received) do
+      msg = msg .. '  ' .. vim.inspect(e) .. ';\n'
+    end
+    msg = msg .. '\nexpected events:\n'
+    for _, e in ipairs(expected) do
+      msg = msg .. '  ' .. vim.inspect(e) .. ';\n'
+    end
+    M.fail(msg)
+  end
+  return received
+end
+
+--- @param cond boolean
+--- @param reason? string
+--- @return boolean
+function M.skip(cond, reason)
+  if cond then
+    --- @type fun(reason: string)
+    local pending = getfenv(2).pending
+    pending(reason or 'FIXME')
+    return true
+  end
+  return false
+end
+
+-- Calls pending() and returns `true` if the system is too slow to
+-- run fragile or expensive tests. Else returns `false`.
+function M.skip_fragile(pending_fn, cond)
+  if pending_fn == nil or type(pending_fn) ~= type(function() end) then
+    error('invalid pending_fn')
+  end
+  if cond then
+    pending_fn('skipped (test is fragile on this system)', function() end)
+    return true
+  elseif os.getenv('TEST_SKIP_FRAGILE') then
+    pending_fn('skipped (TEST_SKIP_FRAGILE)', function() end)
+    return true
+  end
+  return false
+end
+
+return M

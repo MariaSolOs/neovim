@@ -14,6 +14,7 @@ Various commands					*various*
 							*CTRL-L*
 CTRL-L			Clears and redraws the screen.  The redraw may happen
 			later, after processing typeahead.
+			See also |nvim__redraw()|.
 							*CTRL-L-default*
 			By default, also clears search highlighting
 			|:nohlsearch| and updates diffs |:diffupdate|.
@@ -21,13 +22,15 @@ CTRL-L			Clears and redraws the screen.  The redraw may happen
 
 							*:mod* *:mode*
 :mod[e]			Clears and redraws the screen.
+			See also |nvim__redraw()|.
 
 							*:redr* *:redraw*
 :redr[aw][!]		Redraws pending screen updates now, or the entire
 			screen if "!" is included.  To CLEAR the screen use
 			|:mode| or |CTRL-L|.
-			Useful to update the screen during a script or
-			function (or a mapping if 'lazyredraw' set).
+			It can be used to redraw the screen in a script
+			or function (or a mapping if |'lazyredraw'| is set).
+			See also |nvim__redraw()|.
 
 						*:redraws* *:redrawstatus*
 :redraws[tatus][!]	Redraws the status line and window bar of the current
@@ -35,11 +38,12 @@ CTRL-L			Clears and redraws the screen.  The redraw may happen
 			included. Redraws the commandline instead if it contains
 			the 'ruler'. Useful if 'statusline' or 'winbar' includes
 			an item that doesn't cause automatic updating.
+			See also |nvim__redraw()|.
 
 						*:redrawt* *:redrawtabline*
 :redrawt[abline]	Redraw the tabline.  Useful to update the tabline when
 			'tabline' includes an item that doesn't trigger
-			automatic updating.
+			automatic updating. See also |nvim__redraw()|.
 
 							*N<Del>*
 <Del>			When entering a number: Remove the last digit.
@@ -74,9 +78,8 @@ ga			Print the ascii value of the character under the
 			If the character can be inserted as a digraph, also
 			output the two characters that can be used to create
 			the character:
-			    <ö> 246, Hex 00f6, Oct 366, Digr o: ~
+				<ö> 246, Hex 00f6, Oct 366, Digr o: ~
 			This shows you can type CTRL-K o : to insert ö.
-
 
 							*g8*
 g8			Print the hex values of the bytes used in the
@@ -136,12 +139,18 @@ gx			Opens the current filepath or URL (decided by
 :[range]# [count] [flags]
 			synonym for :number.
 
-							*:#!*
+							*:#!* *vim-shebang*
 :#!{anything}		Ignored, so that you can start a Vim script with: >
 				#!vim -S
-				echo "this is a Vim script"
-				quit
+				let mylogbook='$HOME/logbook.md'
+				exe $':e {mylogbook}'
+				$
+				put ='## ' .. strftime('%d. %b %Y')
+				norm! o
 <
+			Make that script executable and run it to create a
+			new diary entry.
+
 							*:z* *E144*
 :[range]z[+-^.=][count]	Display several lines of text surrounding the line
 			specified with [range], or around the current line
@@ -205,7 +214,7 @@ gx			Opens the current filepath or URL (decided by
 			This implies that an insert command must be completed
 			(to start Insert mode, see |:startinsert|).  A ":"
 			command must be completed as well.  And you can't use
-			"Q" or "gQ" to start Ex mode.
+			"gQ" to start Ex mode.
 
 			The display is not updated while ":normal" is busy.
 
@@ -258,6 +267,7 @@ gx			Opens the current filepath or URL (decided by
 <
 							*:!cmd* *:!*
 :!{cmd}			Execute {cmd} with 'shell'. See also |:terminal|.
+			For the filter command, see |:range!|.
 
 			The command runs in a non-interactive shell connected
 			to a pipe (not a terminal). Use |:terminal| to run an
@@ -272,6 +282,16 @@ gx			Opens the current filepath or URL (decided by
 			requires using the call operator (&). >
 				:!Write-Output "1`n2" | & "C:\Windows\System32\sort.exe" /r
 <
+			Vim builds command line using options 'shell', 'shcf',
+			'sxq' and 'shq' in the following order:
+			`&sh &shcf &sxq &shq {cmd} &shq &sxq`
+			So setting both 'sxq' and 'shq' is possible but rarely
+			useful.  Additional escaping inside `{cmd}` may also
+			be due to 'sxe' option.
+
+			Also, all |cmdline-special| characters in {cmd} are
+			replaced by Vim before passing them to shell.
+
 							*E34*
 			Any "!" in {cmd} is replaced with the previous
 			external command (see also 'cpoptions'), unless
@@ -396,6 +416,7 @@ gx			Opens the current filepath or URL (decided by
 			   |:command|    - filter by command name
 			   |:files|      - filter by file name
 			   |:highlight|  - filter by highlight group
+			   |:history|    - filter by history commands
 			   |:jumps|      - filter by file name
 			   |:let|        - filter by variable name
 			   |:list|       - filter whole line
@@ -513,7 +534,8 @@ gO			Show a filetype-specific, navigable "outline" of the
 			current buffer. For example, in a |help| buffer this
 			shows the table of contents.
 
-			Currently works in |help| and |:Man| buffers.
+			Works in |help| and |:Man| buffers, or any buffer with
+			an active |LSP| client (|lsp-defaults|).
 
 [N]gs							*gs* *:sl* *:sleep*
 :[N]sl[eep] [N][m]	Do nothing for [N] seconds, or [N] milliseconds if [m]
@@ -530,17 +552,21 @@ gO			Show a filetype-specific, navigable "outline" of the
 			Queued messages are processed during the sleep.
 
 							*:sl!* *:sleep!*
-:[N]sl[eep]! [N][m]	Same as above. Unlike Vim, it does not hide the
-			cursor. |vim-differences|
+:[N]sl[eep]! [N][m]	Same as above, but hide the cursor.
+
+							*g==*
+g==			Executes the current code block.
+
+			Works in |help| buffers.
 
 ==============================================================================
 2. Using Vim like less or more					*less*
 
 If you use the less or more program to view a file, you don't get syntax
 highlighting.  Thus you would like to use Vim instead.  You can do this by
-using the shell script "$VIMRUNTIME/macros/less.sh".
+using the shell script "$VIMRUNTIME/scripts/less.sh".
 
-This shell script uses the Vim script "$VIMRUNTIME/macros/less.vim".  It sets
+This shell script uses the Vim script "$VIMRUNTIME/scripts/less.vim".  It sets
 up mappings to simulate the commands that less supports.  Otherwise, you can
 still use the Vim commands.
 
@@ -574,6 +600,10 @@ Acting on multiple lines behaves as follows:
 - Otherwise all affected lines are converted to comments; blank lines are
   transformed to empty comments (e.g. `/**/`). Comment markers are aligned to
   the least indented line.
+
+Matching 'commentstring' does not account for whitespace in comment markers.
+Removing comment markers is first attempted exactly, with fallback to using
+markers trimmed from whitespace.
 
 If the filetype of the buffer is associated with a language for which a
 |treesitter| parser is installed, then |vim.filetype.get_option()| is called

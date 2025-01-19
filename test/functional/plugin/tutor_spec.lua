@@ -1,8 +1,10 @@
+local t = require('test.testutil')
+local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
-local t = require('test.functional.testutil')()
-local clear = t.clear
-local command = t.command
-local feed = t.feed
+
+local clear = n.clear
+local command = n.command
+local feed = n.feed
 local is_os = t.is_os
 
 describe(':Tutor', function()
@@ -22,7 +24,6 @@ describe(':Tutor', function()
       [5] = { bold = true, foreground = Screen.colors.Magenta1 },
       [6] = { italic = true },
     })
-    screen:attach()
   end)
 
   it('applies {unix:…,win:…} transform', function()

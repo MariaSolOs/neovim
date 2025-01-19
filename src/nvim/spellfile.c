@@ -240,6 +240,7 @@
 #include "nvim/buffer_defs.h"
 #include "nvim/charset.h"
 #include "nvim/drawscreen.h"
+#include "nvim/errors.h"
 #include "nvim/ex_cmds_defs.h"
 #include "nvim/fileio.h"
 #include "nvim/garray.h"
@@ -2139,11 +2140,11 @@ static afffile_T *spell_read_aff(spellinfo_T *spin, char *fname)
                     + strlen(items[1]) + 3, false);
         if (spin->si_info != NULL) {
           STRCPY(p, spin->si_info);
-          STRCAT(p, "\n");
+          strcat(p, "\n");
         }
-        STRCAT(p, items[0]);
-        STRCAT(p, " ");
-        STRCAT(p, items[1]);
+        strcat(p, items[0]);
+        strcat(p, " ");
+        strcat(p, items[1]);
         spin->si_info = p;
       } else if (is_aff_rule(items, itemcnt, "MIDWORD", 2) && midword == NULL) {
         midword = getroom_save(spin, items[1]);
@@ -2199,7 +2200,7 @@ static afffile_T *spell_read_aff(spellinfo_T *spin, char *fname)
         // "Na" into "Na+", "1234" into "1234+".
         p = getroom(spin, strlen(items[1]) + 2, false);
         STRCPY(p, items[1]);
-        STRCAT(p, "+");
+        strcat(p, "+");
         compflags = p;
       } else if (is_aff_rule(items, itemcnt, "COMPOUNDRULES", 2)) {
         // We don't use the count, but do check that it's a number and
@@ -2220,9 +2221,9 @@ static afffile_T *spell_read_aff(spellinfo_T *spin, char *fname)
           p = getroom(spin, (size_t)l, false);
           if (compflags != NULL) {
             STRCPY(p, compflags);
-            STRCAT(p, "/");
+            strcat(p, "/");
           }
-          STRCAT(p, items[1]);
+          strcat(p, items[1]);
           compflags = p;
         }
       } else if (is_aff_rule(items, itemcnt, "COMPOUNDWORDMAX", 2)
@@ -2843,7 +2844,7 @@ static void process_compflags(spellinfo_T *spin, afffile_T *aff, char *compflags
   char *p = getroom(spin, (size_t)len, false);
   if (spin->si_compflags != NULL) {
     STRCPY(p, spin->si_compflags);
-    STRCAT(p, "/");
+    strcat(p, "/");
   }
   spin->si_compflags = p;
   uint8_t *tp = (uint8_t *)p + strlen(p);
@@ -2859,7 +2860,7 @@ static void process_compflags(spellinfo_T *spin, afffile_T *aff, char *compflags
       if (flag != 0) {
         // Find the flag in the hashtable.  If it was used before, use
         // the existing ID.  Otherwise add a new entry.
-        xstrlcpy(key, prevp, (size_t)(p - prevp) + 1);
+        xmemcpyz(key, prevp, (size_t)(p - prevp));
         hashitem_T *hi = hash_find(&aff->af_comp, key);
         if (!HASHITEM_EMPTY(hi)) {
           id = HI2CI(hi)->ci_newID;
@@ -3263,7 +3264,7 @@ static int get_pfxlist(afffile_T *affile, char *afflist, char *store_afflist)
     if (get_affitem(affile->af_flagtype, &p) != 0) {
       // A flag is a postponed prefix flag if it appears in "af_pref"
       // and its ID is not zero.
-      xstrlcpy(key, prevp, (size_t)(p - prevp) + 1);
+      xmemcpyz(key, prevp, (size_t)(p - prevp));
       hashitem_T *hi = hash_find(&affile->af_pref, key);
       if (!HASHITEM_EMPTY(hi)) {
         int id = HI2AH(hi)->ah_newID;
@@ -3293,7 +3294,7 @@ static void get_compflags(afffile_T *affile, char *afflist, char *store_afflist)
     char *prevp = p;
     if (get_affitem(affile->af_flagtype, &p) != 0) {
       // A flag is a compound flag if it appears in "af_comp".
-      xstrlcpy(key, prevp, (size_t)(p - prevp) + 1);
+      xmemcpyz(key, prevp, (size_t)(p - prevp));
       hashitem_T *hi = hash_find(&affile->af_comp, key);
       if (!HASHITEM_EMPTY(hi)) {
         store_afflist[cnt++] = (char)(uint8_t)HI2CI(hi)->ci_newID;
@@ -3385,7 +3386,7 @@ static int store_aff_word(spellinfo_T *spin, char *word, char *afflist, afffile_
                   MB_PTR_ADV(p);
                 }
               }
-              STRCAT(newword, p);
+              strcat(newword, p);
             } else {
               // suffix: chop/add at the end of the word
               xstrlcpy(newword, word, MAXWLEN);
@@ -3399,7 +3400,7 @@ static int store_aff_word(spellinfo_T *spin, char *word, char *afflist, afffile_
                 *p = NUL;
               }
               if (ae->ae_add != NULL) {
-                STRCAT(newword, ae->ae_add);
+                strcat(newword, ae->ae_add);
               }
             }
 
@@ -3481,7 +3482,7 @@ static int store_aff_word(spellinfo_T *spin, char *word, char *afflist, afffile_
             // Obey a "COMPOUNDFORBIDFLAG" of the affix: don't
             // use the compound flags.
             if (use_pfxlist != NULL && ae->ae_compforbid) {
-              xstrlcpy(pfx_pfxlist, use_pfxlist, (size_t)use_pfxlen + 1);
+              xmemcpyz(pfx_pfxlist, use_pfxlist, (size_t)use_pfxlen);
               use_pfxlist = pfx_pfxlist;
             }
 
@@ -4104,8 +4105,8 @@ static void wordtree_compress(spellinfo_T *spin, wordnode_T *root, const char *n
       perc = (tot - n) * 100 / tot;
     }
     vim_snprintf(IObuff, IOSIZE,
-                 _("Compressed %s of %d nodes; %d (%ld%%) remaining"),
-                 name, tot, tot - n, perc);
+                 _("Compressed %s: %d of %d nodes; %d (%ld%%) remaining"),
+                 name, n, tot, tot - n, perc);
     spell_message(spin, IObuff);
   }
 #ifdef SPELL_PRINTTREE
@@ -5576,7 +5577,7 @@ static void init_spellfile(void)
     if (aspath) {
       // Use directory of an entry with path, e.g., for
       // "/dir/lg.utf-8.spl" use "/dir".
-      xstrlcpy(buf, curbuf->b_s.b_p_spl, (size_t)(lstart - curbuf->b_s.b_p_spl));
+      xmemcpyz(buf, curbuf->b_s.b_p_spl, (size_t)(lstart - curbuf->b_s.b_p_spl - 1));
     } else {
       // Copy the path from 'runtimepath' to buf[].
       copy_option_part(&rtp, buf, MAXPATHL, ",");
@@ -5585,7 +5586,7 @@ static void init_spellfile(void)
       // Use the first language name from 'spelllang' and the
       // encoding used in the first loaded .spl file.
       if (aspath) {
-        xstrlcpy(buf, curbuf->b_s.b_p_spl, (size_t)(lend - curbuf->b_s.b_p_spl + 1));
+        xmemcpyz(buf, curbuf->b_s.b_p_spl, (size_t)(lend - curbuf->b_s.b_p_spl));
       } else {
         // Create the "spell" directory if it doesn't exist yet.
         l = (int)strlen(buf);

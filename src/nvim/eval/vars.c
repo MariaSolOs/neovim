@@ -15,6 +15,7 @@
 #include "nvim/buffer_defs.h"
 #include "nvim/charset.h"
 #include "nvim/drawscreen.h"
+#include "nvim/errors.h"
 #include "nvim/eval.h"
 #include "nvim/eval/encode.h"
 #include "nvim/eval/funcs.h"
@@ -38,7 +39,6 @@
 #include "nvim/ops.h"
 #include "nvim/option.h"
 #include "nvim/option_defs.h"
-#include "nvim/option_vars.h"
 #include "nvim/os/os.h"
 #include "nvim/search.h"
 #include "nvim/strings.h"
@@ -88,7 +88,7 @@ char *eval_one_expr_in_str(char *p, garray_T *gap, bool evaluate)
   }
   if (evaluate) {
     *block_end = NUL;
-    char *expr_val = eval_to_string(block_start, false);
+    char *expr_val = eval_to_string(block_start, false, false);
     *block_end = '}';
     if (expr_val == NULL) {
       return NULL;
@@ -104,7 +104,7 @@ char *eval_one_expr_in_str(char *p, garray_T *gap, bool evaluate)
 /// string in allocated memory.  "{{" is reduced to "{" and "}}" to "}".
 /// Used for a heredoc assignment.
 /// Returns NULL for an error.
-char *eval_all_expr_in_str(char *str)
+static char *eval_all_expr_in_str(char *str)
 {
   garray_T ga;
   ga_init(&ga, 1, 80);
@@ -809,9 +809,9 @@ static char *ex_let_option(char *arg, typval_T *const tv, const bool is_const,
   // Find the end of the name.
   char *arg_end = NULL;
   OptIndex opt_idx;
-  int scope;
+  int opt_flags;
 
-  char *const p = (char *)find_option_var_end((const char **)&arg, &opt_idx, &scope);
+  char *const p = (char *)find_option_var_end((const char **)&arg, &opt_idx, &opt_flags);
 
   if (p == NULL || (endchars != NULL && vim_strchr(endchars, (uint8_t)(*skipwhite(p))) == NULL)) {
     emsg(_(e_letunexp));
@@ -823,7 +823,7 @@ static char *ex_let_option(char *arg, typval_T *const tv, const bool is_const,
 
   bool is_tty_opt = is_tty_option(arg);
   bool hidden = is_option_hidden(opt_idx);
-  OptVal curval = is_tty_opt ? get_tty_option(arg) : get_option_value(opt_idx, scope);
+  OptVal curval = is_tty_opt ? get_tty_option(arg) : get_option_value(opt_idx, opt_flags);
   OptVal newval = NIL_OPTVAL;
 
   if (curval.type == kOptValTypeNil) {
@@ -843,11 +843,10 @@ static char *ex_let_option(char *arg, typval_T *const tv, const bool is_const,
     goto theend;
   }
 
-  // Don't assume current and new values are of the same type in order to future-proof the code for
-  // when an option can have multiple types.
-  const bool is_num = ((curval.type == kOptValTypeNumber || curval.type == kOptValTypeBoolean)
-                       && (newval.type == kOptValTypeNumber || newval.type == kOptValTypeBoolean));
-  const bool is_string = curval.type == kOptValTypeString && newval.type == kOptValTypeString;
+  // Current value and new value must have the same type.
+  assert(curval.type == newval.type);
+  const bool is_num = curval.type == kOptValTypeNumber || curval.type == kOptValTypeBoolean;
+  const bool is_string = curval.type == kOptValTypeString;
 
   if (op != NULL && *op != '=') {
     if (!hidden && is_num) {  // number or bool
@@ -872,15 +871,19 @@ static char *ex_let_option(char *arg, typval_T *const tv, const bool is_const,
       } else {
         newval = BOOLEAN_OPTVAL(TRISTATE_FROM_INT(new_n));
       }
-    } else if (!hidden && is_string
-               && curval.data.string.data != NULL && newval.data.string.data != NULL) {  // string
-      OptVal newval_old = newval;
-      newval = CSTR_AS_OPTVAL(concat_str(curval.data.string.data, newval.data.string.data));
-      optval_free(newval_old);
+    } else if (!hidden && is_string) {  // string
+      const char *curval_data = curval.data.string.data;
+      const char *newval_data = newval.data.string.data;
+
+      if (curval_data != NULL && newval_data != NULL) {
+        OptVal newval_old = newval;
+        newval = CSTR_AS_OPTVAL(concat_str(curval_data, newval_data));
+        optval_free(newval_old);
+      }
     }
   }
 
-  const char *err = set_option_value_handle_tty(arg, opt_idx, newval, scope);
+  const char *err = set_option_value_handle_tty(arg, opt_idx, newval, opt_flags);
   arg_end = p;
   if (err != NULL) {
     emsg(_(err));
@@ -1107,7 +1110,7 @@ static int do_unlet_var(lval_T *lp, char *name_end, exarg_T *eap, int deep FUNC_
     // unlet a List item.
     tv_list_item_remove(lp->ll_list, lp->ll_li);
   } else {
-    // unlet a Dictionary item.
+    // unlet a Dict item.
     dict_T *d = lp->ll_dict;
     assert(d != NULL);
     dictitem_T *di = lp->ll_di;
@@ -1282,7 +1285,7 @@ static int do_lock_var(lval_T *lp, char *name_end FUNC_ATTR_UNUSED, exarg_T *eap
     // (un)lock a List item.
     tv_item_lock(TV_LIST_ITEM_TV(lp->ll_li), deep, lock, false);
   } else {
-    // (un)lock a Dictionary item.
+    // (un)lock a Dict item.
     tv_item_lock(&lp->ll_di->di_tv, deep, lock, false);
   }
 
@@ -1402,11 +1405,12 @@ static void list_one_var(dictitem_T *v, const char *prefix, int *first)
 static void list_one_var_a(const char *prefix, const char *name, const ptrdiff_t name_len,
                            const VarType type, const char *string, int *first)
 {
+  msg_ext_set_kind("list_cmd");
   // don't use msg() to avoid overwriting "v:statusmsg"
   msg_start();
   msg_puts(prefix);
   if (name != NULL) {  // "a:" vars don't have a name stored
-    msg_puts_len(name, name_len, 0);
+    msg_puts_len(name, name_len, 0, false);
   }
   msg_putchar(' ');
   msg_advance(22);
@@ -1428,7 +1432,7 @@ static void list_one_var_a(const char *prefix, const char *name, const ptrdiff_t
     msg_putchar(' ');
   }
 
-  msg_outtrans(string, 0);
+  msg_outtrans(string, 0, false);
 
   if (type == VAR_FUNC || type == VAR_PARTIAL) {
     msg_puts("()");
@@ -1895,8 +1899,6 @@ static void getwinvar(typval_T *argvars, typval_T *rettv, int off)
 ///
 /// @return  Typval converted to OptVal. Must be freed by caller.
 ///          Returns NIL_OPTVAL for invalid option name.
-///
-/// TODO(famiu): Refactor this to support multitype options.
 static OptVal tv_to_optval(typval_T *tv, OptIndex opt_idx, const char *option, bool *error)
 {
   OptVal value = NIL_OPTVAL;
@@ -1907,7 +1909,7 @@ static OptVal tv_to_optval(typval_T *tv, OptIndex opt_idx, const char *option, b
   const bool option_has_num = !is_tty_opt && option_has_type(opt_idx, kOptValTypeNumber);
   const bool option_has_str = is_tty_opt || option_has_type(opt_idx, kOptValTypeString);
 
-  if (!is_tty_opt && (get_option(opt_idx)->flags & P_FUNC) && tv_is_func(*tv)) {
+  if (!is_tty_opt && (get_option(opt_idx)->flags & kOptFlagFunc) && tv_is_func(*tv)) {
     // If the option can be set to a function reference or a lambda
     // and the passed value is a function reference, then convert it to
     // the name (string) of the function reference.
@@ -1964,14 +1966,12 @@ typval_T optval_as_tv(OptVal value, bool numbool)
   case kOptValTypeNil:
     break;
   case kOptValTypeBoolean:
-    if (value.data.boolean != kNone) {
-      if (numbool) {
-        rettv.v_type = VAR_NUMBER;
-        rettv.vval.v_number = value.data.boolean == kTrue;
-      } else {
-        rettv.v_type = VAR_BOOL;
-        rettv.vval.v_bool = value.data.boolean == kTrue;
-      }
+    if (numbool) {
+      rettv.v_type = VAR_NUMBER;
+      rettv.vval.v_number = value.data.boolean;
+    } else if (value.data.boolean != kNone) {
+      rettv.v_type = VAR_BOOL;
+      rettv.vval.v_bool = value.data.boolean == kTrue;
     }
     break;  // return v:null for None boolean value.
   case kOptValTypeNumber:

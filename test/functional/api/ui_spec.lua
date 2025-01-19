@@ -1,13 +1,15 @@
-local t = require('test.functional.testutil')()
+local t = require('test.testutil')
+local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
-local clear = t.clear
-local command = t.command
+
+local clear = n.clear
+local command = n.command
 local eq = t.eq
-local eval = t.eval
-local exec = t.exec
-local feed = t.feed
-local api = t.api
-local request = t.request
+local eval = n.eval
+local exec = n.exec
+local feed = n.feed
+local api = n.api
+local request = n.request
 local pcall_err = t.pcall_err
 
 describe('nvim_ui_attach()', function()
@@ -16,8 +18,7 @@ describe('nvim_ui_attach()', function()
   end)
 
   it('handles very large width/height #2180', function()
-    local screen = Screen.new(999, 999)
-    screen:attach()
+    local _ = Screen.new(999, 999)
     eq(999, eval('&lines'))
     eq(999, eval('&columns'))
   end)
@@ -62,8 +63,7 @@ describe('nvim_ui_attach()', function()
     eq('UI not attached to channel: 1', pcall_err(request, 'nvim_ui_set_option', 'rgb', true))
     eq('UI not attached to channel: 1', pcall_err(request, 'nvim_ui_detach'))
 
-    local screen = Screen.new()
-    screen:attach({ rgb = false })
+    local _ = Screen.new(nil, nil, { rgb = false })
     eq(
       'UI already attached to channel: 1',
       pcall_err(request, 'nvim_ui_attach', 40, 10, { rgb = false })
@@ -80,7 +80,6 @@ it('autocmds UIEnter/UILeave', function()
     autocmd VimEnter * call add(g:evs, "VimEnter")
   ]])
   local screen = Screen.new()
-  screen:attach()
   eq({ chan = 1 }, eval('g:uienter_ev'))
   screen:detach()
   eq({ chan = 1 }, eval('g:uileave_ev'))
@@ -94,7 +93,6 @@ end)
 it('autocmds VimSuspend/VimResume #22041', function()
   clear()
   local screen = Screen.new()
-  screen:attach()
   exec([[
     let g:ev = []
     autocmd VimResume  * :call add(g:ev, 'r')

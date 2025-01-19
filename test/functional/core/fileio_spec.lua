@@ -1,37 +1,37 @@
+local t = require('test.testutil')
+local n = require('test.functional.testnvim')()
+local Screen = require('test.functional.ui.screen')
 local uv = vim.uv
-local t = require('test.functional.testutil')()
 
 local assert_log = t.assert_log
 local assert_nolog = t.assert_nolog
-local clear = t.clear
-local command = t.command
+local clear = n.clear
+local command = n.command
 local eq = t.eq
 local neq = t.neq
 local ok = t.ok
-local feed = t.feed
-local fn = t.fn
-local nvim_prog = t.nvim_prog
-local request = t.request
+local feed = n.feed
+local fn = n.fn
+local nvim_prog = n.nvim_prog
+local request = n.request
 local retry = t.retry
-local rmdir = t.rmdir
+local rmdir = n.rmdir
 local matches = t.matches
-local api = t.api
+local api = n.api
 local mkdir = t.mkdir
 local sleep = vim.uv.sleep
 local read_file = t.read_file
 local trim = vim.trim
-local currentdir = t.fn.getcwd
-local assert_alive = t.assert_alive
-local check_close = t.check_close
-local expect_exit = t.expect_exit
+local currentdir = n.fn.getcwd
+local assert_alive = n.assert_alive
+local check_close = n.check_close
+local expect_exit = n.expect_exit
 local write_file = t.write_file
-local Screen = require('test.functional.ui.screen')
-local feed_command = t.feed_command
+local feed_command = n.feed_command
 local skip = t.skip
 local is_os = t.is_os
 local is_ci = t.is_ci
-local spawn = t.spawn
-local set_session = t.set_session
+local set_session = n.set_session
 
 describe('fileio', function()
   before_each(function() end)
@@ -50,15 +50,13 @@ describe('fileio', function()
     rmdir('Xtest_backupdir with spaces')
   end)
 
-  local args = { nvim_prog, '--clean', '--cmd', 'set nofsync directory=Xtest_startup_swapdir' }
+  local args = { '--clean', '--cmd', 'set nofsync directory=Xtest_startup_swapdir' }
   --- Starts a new nvim session and returns an attached screen.
-  local function startup(extra_args)
-    extra_args = extra_args or {}
-    local argv = vim.tbl_flatten({ args, '--embed', extra_args })
-    local screen_nvim = spawn(argv)
+  local function startup()
+    local argv = vim.iter({ args, '--embed' }):flatten():totable()
+    local screen_nvim = n.new_session(false, { args = argv, merge = false })
     set_session(screen_nvim)
     local screen = Screen.new(70, 10)
-    screen:attach()
     screen:set_default_attr_ids({
       [1] = { foreground = Screen.colors.NvimDarkGrey4 },
       [2] = { background = Screen.colors.NvimDarkGrey1, foreground = Screen.colors.NvimLightGrey3 },
@@ -100,7 +98,8 @@ describe('fileio', function()
     eq('foozubbaz', trim(read_file('Xtest_startup_file1')))
 
     -- 4. Exit caused by deadly signal (+ 'swapfile').
-    local j = fn.jobstart(vim.tbl_flatten({ args, '--embed' }), { rpc = true })
+    local j =
+      fn.jobstart(vim.iter({ nvim_prog, args, '--embed' }):flatten():totable(), { rpc = true })
     fn.rpcrequest(
       j,
       'nvim_exec2',
@@ -228,7 +227,7 @@ describe('fileio', function()
 
     local initial_content = 'foo'
     local backup_dir = 'Xtest_backupdir'
-    local sep = t.get_pathsep()
+    local sep = n.get_pathsep()
     local link_file_name = 'Xtest_startup_file2'
     local backup_file_name = backup_dir .. sep .. link_file_name .. '~'
 
@@ -275,12 +274,6 @@ describe('fileio', function()
     write_file('Xtest-overwrite-forced', 'foobar')
     command('set nofixendofline')
     local screen = Screen.new(40, 4)
-    screen:set_default_attr_ids({
-      [1] = { bold = true, foreground = Screen.colors.Blue1 },
-      [2] = { foreground = Screen.colors.Grey100, background = Screen.colors.Red },
-      [3] = { bold = true, foreground = Screen.colors.SeaGreen4 },
-    })
-    screen:attach()
     command('set shortmess-=F')
 
     command('e Xtest-overwrite-forced')
@@ -299,9 +292,9 @@ describe('fileio', function()
     -- use async feed_command because nvim basically hangs on the prompt
     feed_command('w')
     screen:expect([[
-      {2:WARNING: The file has been changed since}|
-      {2: reading it!!!}                          |
-      {3:Do you really want to write to it (y/n)?}|
+      {9:WARNING: The file has been changed since}|
+      {9: reading it!!!}                          |
+      {6:Do you really want to write to it (y/n)?}|
       ^                                        |
     ]])
 
@@ -325,11 +318,11 @@ end)
 describe('tmpdir', function()
   local tmproot_pat = [=[.*[/\\]nvim%.[^/\\]+]=]
   local testlog = 'Xtest_tmpdir_log'
-  local os_tmpdir
+  local os_tmpdir ---@type string
 
   before_each(function()
     -- Fake /tmp dir so that we can mess it up.
-    os_tmpdir = vim.uv.fs_mkdtemp(vim.fs.dirname(t.tmpname()) .. '/nvim_XXXXXXXXXX')
+    os_tmpdir = assert(vim.uv.fs_mkdtemp(vim.fs.dirname(t.tmpname(false)) .. '/nvim_XXXXXXXXXX'))
   end)
 
   after_each(function()
@@ -417,16 +410,5 @@ describe('tmpdir', function()
     eq('E5431: tempdir disappeared (2 times)', api.nvim_get_vvar('errmsg'))
     rm_tmpdir()
     eq('E5431: tempdir disappeared (3 times)', api.nvim_get_vvar('errmsg'))
-  end)
-
-  it('$NVIM_APPNAME relative path', function()
-    clear({
-      env = {
-        NVIM_APPNAME = 'a/b',
-        NVIM_LOG_FILE = testlog,
-        TMPDIR = os_tmpdir,
-      },
-    })
-    matches([=[.*[/\\]a%%b%.[^/\\]+]=], fn.tempname())
   end)
 end)

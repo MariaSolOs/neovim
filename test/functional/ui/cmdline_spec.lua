@@ -1,40 +1,24 @@
-local t = require('test.functional.testutil')()
+local t = require('test.testutil')
+local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
-local clear, feed = t.clear, t.feed
-local source = t.source
-local command = t.command
-local assert_alive = t.assert_alive
-local poke_eventloop = t.poke_eventloop
-local exec = t.exec
-local eval = t.eval
+
+local clear, feed = n.clear, n.feed
+local source = n.source
+local command = n.command
+local assert_alive = n.assert_alive
+local poke_eventloop = n.poke_eventloop
+local exec = n.exec
+local eval = n.eval
 local eq = t.eq
 local is_os = t.is_os
-local api = t.api
-
-local function new_screen(opt)
-  local screen = Screen.new(25, 5)
-  screen:attach(opt)
-  screen:set_default_attr_ids({
-    [1] = { bold = true, foreground = Screen.colors.Blue1 },
-    [2] = { reverse = true },
-    [3] = { bold = true, reverse = true },
-    [4] = { foreground = Screen.colors.Grey100, background = Screen.colors.Red },
-    [5] = { bold = true, foreground = Screen.colors.SeaGreen4 },
-    [6] = { foreground = Screen.colors.Magenta },
-    [7] = { bold = true, foreground = Screen.colors.Brown },
-    [8] = { foreground = Screen.colors.Black, background = Screen.colors.LightGrey },
-    [9] = { bold = true },
-    [10] = { background = Screen.colors.Yellow1 },
-  })
-  return screen
-end
+local api = n.api
 
 local function test_cmdline(linegrid)
   local screen
 
   before_each(function()
     clear()
-    screen = new_screen({ rgb = true, ext_cmdline = true, ext_linegrid = linegrid })
+    screen = Screen.new(25, 5, { rgb = true, ext_cmdline = true, ext_linegrid = linegrid })
   end)
 
   it('works', function()
@@ -107,25 +91,27 @@ local function test_cmdline(linegrid)
       {1:~                        }|*3
                                |
     ]],
+      cmdline = { { abort = true } },
     }
   end)
 
   it('works with input()', function()
     feed(':call input("input", "default")<cr>')
-    screen:expect {
+    screen:expect({
       grid = [[
-      ^                         |
-      {1:~                        }|*3
-                               |
-    ]],
+        ^                         |
+        {1:~                        }|*3
+                                 |
+      ]],
       cmdline = {
         {
-          prompt = 'input',
           content = { { 'default' } },
+          hl_id = 0,
           pos = 7,
+          prompt = 'input',
         },
       },
-    }
+    })
 
     feed('<cr>')
     screen:expect {
@@ -134,6 +120,7 @@ local function test_cmdline(linegrid)
       {1:~                        }|*3
                                |
     ]],
+      cmdline = { { abort = false } },
     }
   end)
 
@@ -187,7 +174,7 @@ local function test_cmdline(linegrid)
       },
       {
         firstc = '=',
-        content = { { '1', 6 }, { '+', 7 }, { '2', 6 } },
+        content = { { '1', 26 }, { '+', 15 }, { '2', 26 } },
         pos = 3,
       },
     }
@@ -226,6 +213,7 @@ local function test_cmdline(linegrid)
           content = { { 'xx3' } },
           pos = 3,
         },
+        { abort = false },
       },
     }
 
@@ -236,6 +224,7 @@ local function test_cmdline(linegrid)
       {1:~                        }|*3
                                |
     ]],
+      cmdline = { { abort = true } },
     }
   end)
 
@@ -310,6 +299,7 @@ local function test_cmdline(linegrid)
       {1:~                        }|*3
                                |
     ]],
+      cmdline = { { abort = false } },
     }
 
     -- Try once more, to check buffer is reinitialized. #8007
@@ -340,6 +330,7 @@ local function test_cmdline(linegrid)
       {1:~                        }|*3
                                |
     ]],
+      cmdline = { { abort = false } },
     }
   end)
 
@@ -369,6 +360,7 @@ local function test_cmdline(linegrid)
       {3:[Command Line]           }|
                                |
     ]],
+      cmdline = { { abort = false } },
     }
 
     -- nested cmdline
@@ -420,6 +412,7 @@ local function test_cmdline(linegrid)
       {3:[Command Line]           }|
                                |
     ]],
+      cmdline = { [2] = { abort = true } },
     }
 
     feed('<c-c>')
@@ -468,6 +461,7 @@ local function test_cmdline(linegrid)
       cmdline = {
         {
           prompt = 'secret:',
+          hl_id = 0,
           content = { { '******' } },
           pos = 6,
         },
@@ -501,29 +495,25 @@ local function test_cmdline(linegrid)
       map <f5>  :let x = input({'prompt':'>','highlight':'RainBowParens'})<cr>
       "map <f5>  :let x = input({'prompt':'>'})<cr>
     ]])
-    screen:set_default_attr_ids({
-      RBP1 = { background = Screen.colors.Red },
-      RBP2 = { background = Screen.colors.Yellow },
-      EOB = { bold = true, foreground = Screen.colors.Blue1 },
-    })
     feed('<f5>(a(b)a)')
     screen:expect {
       grid = [[
       ^                         |
-      {EOB:~                        }|*3
+      {1:~                        }|*3
                                |
     ]],
       cmdline = {
         {
           prompt = '>',
+          hl_id = 0,
           content = {
-            { '(', 'RBP1' },
+            { '(', 30 },
             { 'a' },
-            { '(', 'RBP2' },
+            { '(', 10 },
             { 'b' },
-            { ')', 'RBP2' },
+            { ')', 10 },
             { 'a' },
-            { ')', 'RBP1' },
+            { ')', 30 },
           },
           pos = 7,
         },
@@ -818,11 +808,14 @@ local function test_cmdline(linegrid)
     -- This used to send an invalid event where pos where larger than the total
     -- length of content. Checked in _handle_cmdline_show.
     feed('<esc>')
-    screen:expect([[
-      ^                         |
-      {1:~                        }|*3
-                               |
-    ]])
+    screen:expect({
+      grid = [[
+        ^                         |
+        {1:~                        }|*3
+                                 |
+      ]],
+      cmdline = { { abort = true } },
+    })
   end)
 
   it('does not move cursor to curwin #20309', function()
@@ -832,6 +825,7 @@ local function test_cmdline(linegrid)
     command('norm icurwin')
     feed(':')
     api.nvim_win_set_cursor(win, { 1, 7 })
+    api.nvim__redraw({ win = win, cursor = true })
     screen:expect {
       grid = [[
       curwin                   |
@@ -846,6 +840,30 @@ local function test_cmdline(linegrid)
         pos = 0,
       } },
     }
+  end)
+
+  it('show prompt hl_id', function()
+    screen:expect([[
+      ^                         |
+      {1:~                        }|*3
+                               |
+    ]])
+    feed(':echohl Error | call input("Prompt:")<CR>')
+    screen:expect({
+      grid = [[
+        ^                         |
+        {1:~                        }|*3
+                                 |
+      ]],
+      cmdline = {
+        {
+          content = { { '' } },
+          hl_id = 237,
+          pos = 0,
+          prompt = 'Prompt:',
+        },
+      },
+    })
   end)
 end
 
@@ -862,7 +880,7 @@ describe('cmdline redraw', function()
   local screen
   before_each(function()
     clear()
-    screen = new_screen({ rgb = true })
+    screen = Screen.new(25, 5, { rgb = true })
   end)
 
   it('with timer', function()
@@ -926,17 +944,17 @@ describe('cmdline redraw', function()
                                               |
       {1:~                                       }|*3
       {2:[No Name]                               }|
-      {1::}^a{8:bc}                                    |
+      {1::}^a{17:bc}                                    |
       {1:~                                       }|*2
       {3:[Command Line]                          }|
-      {9:-- VISUAL --}                            |
+      {5:-- VISUAL --}                            |
     ]])
     feed('<C-C>')
     screen:expect([[
                                               |
       {1:~                                       }|*3
       {2:[No Name]                               }|
-      {1::}a{8:bc}                                    |
+      {1::}a{17:bc}                                    |
       {1:~                                       }|*2
       {3:[Command Line]                          }|
       :^abc                                    |
@@ -1020,6 +1038,18 @@ describe('cmdline redraw', function()
     ]],
     }
   end)
+
+  it('silent prompt', function()
+    command([[nmap <silent> T :call confirm("Save changes?", "&Yes\n&No\n&Cancel")<CR>]])
+    feed('T')
+    screen:expect([[
+                               |
+      {3:                         }|
+                               |
+      {6:Save changes?}            |
+      {6:[Y]es, (N)o, (C)ancel: }^  |
+    ]])
+  end)
 end)
 
 describe('statusline is redrawn on entering cmdline', function()
@@ -1027,7 +1057,7 @@ describe('statusline is redrawn on entering cmdline', function()
 
   before_each(function()
     clear()
-    screen = new_screen()
+    screen = Screen.new(25, 5)
     command('set laststatus=2')
   end)
 
@@ -1090,61 +1120,61 @@ describe('statusline is redrawn on entering cmdline', function()
     feed(':echoerr doesnotexist<cr>')
     screen:expect {
       grid = [[
-      {9:c1                                 }|
+      {5:c1                                 }|
                                          |
       {3:c1                                 }|
                                          |
       {1:~                                  }|*5
       {3:                                   }|
-      {4:E121: Undefined variable: doesnotex}|
-      {4:ist}                                |
-      {5:Press ENTER or type command to cont}|
-      {5:inue}^                               |
+      {9:E121: Undefined variable: doesnotex}|
+      {9:ist}                                |
+      {6:Press ENTER or type command to cont}|
+      {6:inue}^                               |
     ]],
     }
     feed(':echoerr doesnotexist<cr>')
     screen:expect {
       grid = [[
-      {9:c2                                 }|
+      {5:c2                                 }|
                                          |
       {3:c2                                 }|
                                          |
       {1:~                                  }|*2
       {3:                                   }|
-      {4:E121: Undefined variable: doesnotex}|
-      {4:ist}                                |
-      {5:Press ENTER or type command to cont}|
-      {4:E121: Undefined variable: doesnotex}|
-      {4:ist}                                |
-      {5:Press ENTER or type command to cont}|
-      {5:inue}^                               |
+      {9:E121: Undefined variable: doesnotex}|
+      {9:ist}                                |
+      {6:Press ENTER or type command to cont}|
+      {9:E121: Undefined variable: doesnotex}|
+      {9:ist}                                |
+      {6:Press ENTER or type command to cont}|
+      {6:inue}^                               |
     ]],
     }
 
     feed(':echoerr doesnotexist<cr>')
     screen:expect {
       grid = [[
-      {9:c3                                 }|
+      {5:c3                                 }|
                                          |
       {3:c3                                 }|
       {3:                                   }|
-      {4:E121: Undefined variable: doesnotex}|
-      {4:ist}                                |
-      {5:Press ENTER or type command to cont}|
-      {4:E121: Undefined variable: doesnotex}|
-      {4:ist}                                |
-      {5:Press ENTER or type command to cont}|
-      {4:E121: Undefined variable: doesnotex}|
-      {4:ist}                                |
-      {5:Press ENTER or type command to cont}|
-      {5:inue}^                               |
+      {9:E121: Undefined variable: doesnotex}|
+      {9:ist}                                |
+      {6:Press ENTER or type command to cont}|
+      {9:E121: Undefined variable: doesnotex}|
+      {9:ist}                                |
+      {6:Press ENTER or type command to cont}|
+      {9:E121: Undefined variable: doesnotex}|
+      {9:ist}                                |
+      {6:Press ENTER or type command to cont}|
+      {6:inue}^                               |
     ]],
     }
 
     feed('<cr>')
     screen:expect {
       grid = [[
-      {9:n3                                 }|
+      {5:n3                                 }|
       ^                                   |
       {3:n3                                 }|
                                          |
@@ -1199,12 +1229,6 @@ end)
 it('tabline is not redrawn in Ex mode #24122', function()
   clear()
   local screen = Screen.new(60, 5)
-  screen:set_default_attr_ids({
-    [0] = { bold = true, foreground = Screen.colors.Blue }, -- NonText
-    [1] = { bold = true, reverse = true }, -- MsgSeparator
-    [2] = { reverse = true }, -- TabLineFill
-  })
-  screen:attach()
 
   exec([[
     set showtabline=2
@@ -1221,7 +1245,7 @@ it('tabline is not redrawn in Ex mode #24122', function()
     grid = [[
     {2:foo                                                         }|
                                                                 |
-    {1:                                                            }|
+    {3:                                                            }|
     Entering Ex mode.  Type "visual" to go to Normal mode.      |
     :^                                                           |
   ]],
@@ -1230,7 +1254,7 @@ it('tabline is not redrawn in Ex mode #24122', function()
   feed('echo 1<CR>')
   screen:expect {
     grid = [[
-    {1:                                                            }|
+    {3:                                                            }|
     Entering Ex mode.  Type "visual" to go to Normal mode.      |
     :echo 1                                                     |
     1                                                           |
@@ -1244,7 +1268,6 @@ describe('cmdline height', function()
 
   it('does not crash resized screen #14263', function()
     local screen = Screen.new(25, 10)
-    screen:attach()
     command('set cmdheight=9999')
     screen:try_resize(25, 5)
     assert_alive()
@@ -1265,7 +1288,6 @@ describe('cmdheight=0', function()
   before_each(function()
     clear()
     screen = Screen.new(25, 5)
-    screen:attach()
   end)
 
   it('with redrawdebug=invalid resize -1', function()
@@ -1475,31 +1497,29 @@ describe('cmdheight=0', function()
   it('when substitute text', function()
     command('set cmdheight=0 noruler laststatus=3')
     feed('ifoo<ESC>')
-    screen:expect {
-      grid = [[
+    screen:try_resize(screen._width, 7)
+    screen:expect([[
       fo^o                      |
-      {1:~                        }|*3
+      {1:~                        }|*5
       {3:[No Name] [+]            }|
-    ]],
-    }
+    ]])
 
     feed(':%s/foo/bar/gc<CR>')
-    screen:expect {
-      grid = [[
+    screen:expect([[
       {2:foo}                      |
-      {1:~                        }|*3
-      {6:replace wi...q/l/^E/^Y)?}^ |
-    ]],
-    }
+      {3:                         }|
+                               |*2
+      {6:replace with bar? (y)es/(}|
+      {6:n)o/(a)ll/(q)uit/(l)ast/s}|
+      {6:croll up(^E)/down(^Y)}^    |
+    ]])
 
     feed('y')
-    screen:expect {
-      grid = [[
+    screen:expect([[
       ^bar                      |
-      {1:~                        }|*3
+      {1:~                        }|*5
       {3:[No Name] [+]            }|
-    ]],
-    }
+    ]])
 
     assert_alive()
   end)
@@ -1532,7 +1552,7 @@ describe('cmdheight=0', function()
 
   it('with silent! at startup', function()
     clear { args = { '-c', 'set cmdheight=0', '-c', 'autocmd VimEnter * silent! call Foo()' } }
-    screen:attach()
+    screen = Screen.new(25, 5)
     -- doesn't crash while not displaying silent! error message
     screen:expect {
       grid = [[
@@ -1544,7 +1564,7 @@ describe('cmdheight=0', function()
 
   it('with multigrid', function()
     clear { args = { '--cmd', 'set cmdheight=0' } }
-    screen:attach { ext_multigrid = true }
+    screen = Screen.new(25, 5, { ext_multigrid = true })
     api.nvim_buf_set_lines(0, 0, -1, true, { 'p' })
     screen:expect {
       grid = [[
@@ -1705,19 +1725,24 @@ describe('cmdheight=0', function()
     ]])
   end)
 
-  it('cannot be resized at all with external messages', function()
+  it('can be resized with external messages', function()
     clear()
-    screen = new_screen({ rgb = true, ext_messages = true })
+    screen = Screen.new(25, 5, { rgb = true, ext_messages = true })
     command('set laststatus=2 mouse=a')
     command('resize -1')
+    screen:expect([[
+      ^                         |
+      {1:~                        }|*2
+      {3:[No Name]                }|
+                               |
+    ]])
+    api.nvim_input_mouse('left', 'press', '', 0, 3, 10)
+    poke_eventloop()
+    api.nvim_input_mouse('left', 'drag', '', 0, 4, 10)
     screen:expect([[
       ^                         |
       {1:~                        }|*3
       {3:[No Name]                }|
     ]])
-    api.nvim_input_mouse('left', 'press', '', 0, 6, 10)
-    poke_eventloop()
-    api.nvim_input_mouse('left', 'drag', '', 0, 5, 10)
-    screen:expect_unchanged()
   end)
 end)

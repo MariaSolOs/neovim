@@ -2,10 +2,11 @@
 #include <stdbool.h>
 #include <string.h>
 
+#include "nvim/ascii_defs.h"
 #include "nvim/charset.h"
+#include "nvim/errors.h"
 #include "nvim/ex_cmds_defs.h"
 #include "nvim/gettext_defs.h"
-#include "nvim/globals.h"
 #include "nvim/lua/executor.h"
 #include "nvim/lua/secure.h"
 #include "nvim/memory.h"
@@ -103,12 +104,12 @@ void ex_trust(exarg_T *eap)
     action = "deny";
   } else if (strcmp(arg1, "++remove") == 0) {
     action = "remove";
-  } else if (*arg1 != '\0') {
+  } else if (*arg1 != NUL) {
     semsg(e_invarg2, arg1);
     goto theend;
   }
 
-  if (path[0] == '\0') {
+  if (path[0] == NUL) {
     path = NULL;
   }
 

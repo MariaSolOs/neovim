@@ -8,8 +8,6 @@ on:
     branches:
       - 'master'
       - 'release-[0-9]+.[0-9]+'
-    paths-ignore:
-      - 'contrib/**'
   workflow_dispatch:
 
 concurrency:
@@ -30,7 +28,7 @@ env:
 
 jobs:
   lint:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     env:
       CC: clang
@@ -80,7 +78,7 @@ jobs:
         run: cmake --build build --target lintc-uncrustify
 
   clang-analyzer:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
       CC: clang
@@ -95,18 +93,23 @@ jobs:
       - run: cmake --build build --target clang-analyzer
 
   posix:
-    name: ${{ matrix.build.runner }} ${{ matrix.build.flavor }} ${{ matrix.build.cc }} ${{ matrix.test }}
+    name: ${{ matrix.build.os }} ${{ matrix.build.flavor }} ${{ matrix.build.cc }} ${{ matrix.test }}
     strategy:
       fail-fast: false
       matrix:
+        # The `os` field is not needed to differentiate between the different
+        # matrix builds. It is needed to not change the required checks (which
+        # uses jobs names) each time we bump the runner version. It may be
+        # possible to remove if we e.g. start using `-latest` runner versions
+        # or if github introduces a wildcard for required checks in the future.
         build:
           [
-            { runner: ubuntu-22.04, flavor: asan, cc: clang, flags: -D ENABLE_ASAN_UBSAN=ON },
-            { runner: ubuntu-22.04, flavor: tsan, cc: clang, flags: -D ENABLE_TSAN=ON },
-            { runner: ubuntu-22.04, cc: gcc },
-            { runner: macos-12, cc: clang, flags: -D CMAKE_FIND_FRAMEWORK=NEVER, deps_flags: -D CMAKE_FIND_FRAMEWORK=NEVER },
-            { runner: macos-14, cc: clang, flags: -D CMAKE_FIND_FRAMEWORK=NEVER, deps_flags: -D CMAKE_FIND_FRAMEWORK=NEVER },
-            { runner: ubuntu-22.04, flavor: puc-lua, cc: gcc, deps_flags: -D USE_BUNDLED_LUAJIT=OFF -D USE_BUNDLED_LUA=ON, flags: -D PREFER_LUA=ON },
+            { runner: ubuntu-24.04, os: ubuntu, flavor: asan, cc: clang, flags: -D ENABLE_ASAN_UBSAN=ON },
+            { runner: ubuntu-24.04, os: ubuntu, flavor: tsan, cc: clang, flags: -D ENABLE_TSAN=ON },
+            { runner: ubuntu-24.04, os: ubuntu, flavor: release, cc: gcc, flags: -D CMAKE_BUILD_TYPE=Release },
+            { runner: macos-13, os: macos, flavor: intel, cc: clang, flags: -D CMAKE_FIND_FRAMEWORK=NEVER, deps_flags: -D CMAKE_FIND_FRAMEWORK=NEVER },
+            { runner: macos-15, os: macos, flavor: arm, cc: clang, flags: -D CMAKE_FIND_FRAMEWORK=NEVER, deps_flags: -D CMAKE_FIND_FRAMEWORK=NEVER },
+            { runner: ubuntu-24.04, os: ubuntu, flavor: puc-lua, cc: gcc, deps_flags: -D USE_BUNDLED_LUAJIT=OFF -D USE_BUNDLED_LUA=ON, flags: -D PREFER_LUA=ON },
           ]
         test: [unittest, functionaltest, oldtest]
         exclude:
@@ -142,6 +145,10 @@ jobs:
           sudo cpanm -n Neovim::Ext || cat "$HOME/.cpanm/build.log"
           perl -W -e 'use Neovim::Ext; print $Neovim::Ext::VERSION'
 
+      - name: Remove .git directory
+        if: ${{ matrix.build.os == 'ubuntu' }}
+        run: cmake -E rm -rf -- .git
+
       - name: Build third-party deps
         run: |
           cmake -S cmake.deps --preset ci -D CMAKE_BUILD_TYPE=Debug ${{ matrix.build.deps_flags }}
@@ -152,9 +159,15 @@ jobs:
           cmake --preset ci -D CMAKE_BUILD_TYPE=Debug -D CMAKE_INSTALL_PREFIX:PATH=$INSTALL_PREFIX ${{ matrix.build.flags }}
           cmake --build build
 
-      - name: ${{ matrix.test }}
+      - if: ${{ matrix.test == 'oldtest' }}
+        name: ${{ matrix.test }}
         timeout-minutes: 20
-        run: make ${{ matrix.test }}
+        run: make -C test/old/testdir NVIM_PRG=$(realpath build)/bin/nvim
+
+      - if: ${{ matrix.test != 'oldtest' }}
+        name: ${{ matrix.test }}
+        timeout-minutes: 20
+        run: cmake --build build --target ${{ matrix.test }}
 
       - name: Install
         run: |
@@ -191,7 +204,7 @@ jobs:
     uses: ./.github/workflows/test_windows.yml
 
   # This job tests the following things:
-  # - Check if Release, MinSizeRel and RelWithDebInfo compiles correctly.
+  # - Check if MinSizeRel and RelWithDebInfo compiles correctly.
   # - Test the above build types with the GCC compiler specifically.
   #   Empirically the difference in warning levels between GCC and other
   #   compilers is particularly big.
@@ -199,7 +212,7 @@ jobs:
   #   single-config generators so it's nice to have a small sanity check for
   #   multi-config.
   build-types:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     env:
       CC: gcc
@@ -215,9 +228,6 @@ jobs:
       - name: Configure
         run: cmake --preset ci -G "Ninja Multi-Config"
 
-      - name: Release
-        run: cmake --build build --config Release
-
       - name: RelWithDebInfo
         run: cmake --build build --config RelWithDebInfo
 
@@ -225,7 +235,7 @@ jobs:
         run: cmake --build build --config MinSizeRel
 
   with-external-deps:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     env:
       CC: gcc
@@ -238,8 +248,6 @@ jobs:
           sudo add-apt-repository ppa:neovim-ppa/stable
           sudo apt-get install -y \
             libluajit-5.1-dev \
-            libmsgpack-dev \
-            libtermkey-dev \
             libunibilium-dev \
             libuv1-dev \
             lua-filesystem \
@@ -247,7 +255,6 @@ jobs:
             luajit \
             lua-luv-dev
             # libtree-sitter-dev \
-            # libvterm-dev
 
             # Remove comments from packages once we start using these external
             # dependencies.

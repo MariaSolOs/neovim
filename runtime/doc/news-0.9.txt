@@ -4,7 +4,7 @@
                             NVIM REFERENCE MANUAL
 
 
-Notable changes in Nvim 0.9 from 0.8                                 *news-0.9*
+Notable changes since Nvim 0.8                                       *news-0.9*
 
                                        Type |gO| to see the table of contents.
 
@@ -92,7 +92,7 @@ The following new APIs or features were added.
   showing a text representation of the nodes in a language tree for the current
   buffer.
 
-• |'statuscolumn'| option to customize the area to the side of a window,
+• 'statuscolumn' option to customize the area to the side of a window,
   normally containing the fold, sign and number columns. This new option follows
   the 'statusline' syntax and can be used to transform the line numbers, create
   mouse click callbacks for |signs|, introduce a custom margin or separator etc.
@@ -129,15 +129,17 @@ The following new APIs or features were added.
 • When using Nvim inside tmux 3.2 or later, the default clipboard provider
   will now copy to the system clipboard. |provider-clipboard|
 
-• |'showcmdloc'| option to display the 'showcmd' information in the
-  status line or tab line. A new %S statusline item is available to place
-  the 'showcmd' text in a custom 'statusline'. Useful for when |'cmdheight'|
-  is set to 0.
+• 'showcmdloc' option to display the 'showcmd' information in the status
+  line or tab line. A new %S statusline item is available to place the
+  'showcmd' text in a custom 'statusline'. Useful for when 'cmdheight' is set
+  to 0.
 
-• |'splitkeep'| option to control the scroll behavior of horizontal splits.
+• 'splitkeep' option to control the scroll behavior of horizontal splits.
 
-• |'diffopt'| now includes a `linematch` option to enable a second-stage diff
-  on individual hunks to provide much more accurate diffs. This option is also
+• 'wildoptions' flag "fuzzy" enables |fuzzy-matching| during |cmdline-completion|.
+
+• 'diffopt' now includes a `linematch` option to enable a second-stage diff on
+  individual hunks to provide much more accurate diffs. This option is also
   available to |vim.diff()|
 
   See https://github.com/neovim/neovim/pull/14537.
@@ -235,7 +237,7 @@ The following changes to existing APIs or features add new behavior.
   relative to the mouse. Note that the mouse doesn't update frequently without
   setting `vim.o.mousemoveevent = true`
 
-• |nvim_eval_statusline()| supports evaluating the |'statuscolumn'| through a
+• |nvim_eval_statusline()| supports evaluating the 'statuscolumn' through a
   new `opts` field: `use_statuscol_lnum`.
 
 • |nvim_buf_get_extmarks()| now accepts a -1 `ns_id` to request extmarks from
@@ -290,34 +292,6 @@ The following deprecated functions or APIs were removed.
 ==============================================================================
 DEPRECATIONS
 
-The following functions are now deprecated and will be removed in the next
-release.
-
-• |vim.treesitter.language.add()| replaces `vim.treesitter.language.require_language()`
-
-• |vim.treesitter.get_node_at_pos()| and |vim.treesitter.get_node_at_cursor()|
-  are both deprecated in favor of |vim.treesitter.get_node()|.
-
-• `vim.api.nvim_get_hl_by_name()`, `vim.api.nvim_get_hl_by_id()` were deprecated, use |nvim_get_hl()| instead.
-
-• The following top level Treesitter functions have been moved:
-  `vim.treesitter.inspect_language()`    -> `vim.treesitter.language.inspect()`
-  `vim.treesitter.get_query_files()`     -> `vim.treesitter.query.get_files()`
-  `vim.treesitter.set_query()`           -> `vim.treesitter.query.set()`
-  `vim.treesitter.query.set_query()`     -> `vim.treesitter.query.set()`
-  `vim.treesitter.get_query()`           -> `vim.treesitter.query.get()`
-  `vim.treesitter.query.get_query()`     -> `vim.treesitter.query.get()`
-  `vim.treesitter.parse_query()`         -> `vim.treesitter.query.parse()`
-  `vim.treesitter.query.parse_query()`   -> `vim.treesitter.query.parse()`
-  `vim.treesitter.add_predicate()`       -> `vim.treesitter.query.add_predicate()`
-  `vim.treesitter.add_directive()`       -> `vim.treesitter.query.add_directive()`
-  `vim.treesitter.list_predicates()`     -> `vim.treesitter.query.list_predicates()`
-  `vim.treesitter.list_directives()`     -> `vim.treesitter.query.list_directives()`
-  `vim.treesitter.query.get_range()`     -> `vim.treesitter.get_range()`
-  `vim.treesitter.query.get_node_text()` -> `vim.treesitter.get_node_text()`
-
-• |nvim_exec()| is now deprecated in favor of |nvim_exec2()|.
-
-• Renamed |vim.pretty_print()| to |vim.print()|.
+See |deprecated-0.9|.
 
  vim:tw=78:ts=8:sw=2:et:ft=help:norl:

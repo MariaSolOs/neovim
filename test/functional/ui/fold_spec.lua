@@ -1,13 +1,15 @@
-local t = require('test.functional.testutil')()
+local t = require('test.testutil')
+local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
-local clear, feed, eq = t.clear, t.feed, t.eq
-local command = t.command
-local feed_command = t.feed_command
-local insert = t.insert
-local fn = t.fn
-local api = t.api
-local exec = t.exec
-local assert_alive = t.assert_alive
+
+local clear, feed, eq = n.clear, n.feed, t.eq
+local command = n.command
+local feed_command = n.feed_command
+local insert = n.insert
+local fn = n.fn
+local api = n.api
+local exec = n.exec
+local assert_alive = n.assert_alive
 
 local content1 = [[
         This is a
@@ -26,8 +28,7 @@ describe('folded lines', function()
   local function with_ext_multigrid(multigrid)
     local screen
     before_each(function()
-      screen = Screen.new(45, 8)
-      screen:attach({ rgb = true, ext_multigrid = multigrid })
+      screen = Screen.new(45, 8, { rgb = true, ext_multigrid = multigrid })
       screen:set_default_attr_ids({
         [1] = { bold = true, foreground = Screen.colors.Blue1 },
         [2] = { reverse = true },
@@ -53,6 +54,8 @@ describe('folded lines', function()
         },
         [19] = { background = Screen.colors.Yellow, foreground = Screen.colors.DarkBlue },
         [20] = { background = Screen.colors.Red, bold = true, foreground = Screen.colors.Blue },
+        [21] = { background = Screen.colors.LightGrey, foreground = Screen.colors.Green },
+        [22] = { background = Screen.colors.Red, foreground = Screen.colors.Green },
       })
     end)
 
@@ -2623,6 +2626,8 @@ describe('folded lines', function()
       command('hi! CursorLine guibg=NONE guifg=Red gui=NONE')
       command('hi F0 guibg=Red guifg=Black')
       command('hi F1 guifg=White')
+      command([[syn match Keyword /\<sentence\>/]])
+      command('hi! Keyword guibg=NONE guifg=Green')
       api.nvim_set_option_value('cursorline', true, {})
       api.nvim_set_option_value('foldcolumn', '4', {})
       api.nvim_set_option_value('foldtext', '', {})
@@ -2660,7 +2665,7 @@ describe('folded lines', function()
         ## grid 2
           {7:    }This is a                 |
           {7:-   }valid English             |
-          {7:│+  }{5:sentence composed by······}|
+          {7:│+  }{21:sentence}{5: composed by······}|
           {7:│+  }{13:^in his cave.··············}|
           {1:~                             }|*2
         ## grid 3
@@ -2670,7 +2675,7 @@ describe('folded lines', function()
         screen:expect([[
           {7:    }This is a                 |
           {7:-   }valid English             |
-          {7:│+  }{5:sentence composed by······}|
+          {7:│+  }{21:sentence}{5: composed by······}|
           {7:│+  }{13:^in his cave.··············}|
           {1:~                             }|*2
                                         |
@@ -2687,7 +2692,7 @@ describe('folded lines', function()
         ## grid 2
           {7:    }This is a                 |
           {7:-   }^v{14:alid English}             |
-          {7:│+  }{15:sentence composed by······}|
+          {7:│+  }{22:sentence}{15: composed by······}|
           {7:│+  }{15:in his cave.··············}|
           {1:~                             }|*2
         ## grid 3
@@ -2697,7 +2702,7 @@ describe('folded lines', function()
         screen:expect([[
           {7:    }This is a                 |
           {7:-   }^v{14:alid English}             |
-          {7:│+  }{15:sentence composed by······}|
+          {7:│+  }{22:sentence}{15: composed by······}|
           {7:│+  }{15:in his cave.··············}|
           {1:~                             }|*2
           {11:-- VISUAL LINE --}             |
@@ -2713,7 +2718,7 @@ describe('folded lines', function()
         ## grid 2
                            a si sihT{7:    }|
                        {14:hsilgnE dila}^v{7:   -}|
-          {15:······yb desopmoc ecnetnes}{7:  +│}|
+          {15:······yb desopmoc }{22:ecnetnes}{7:  +│}|
           {15:··············.evac sih ni}{7:  +│}|
           {1:                             ~}|*2
         ## grid 3
@@ -2723,7 +2728,7 @@ describe('folded lines', function()
         screen:expect([[
                            a si sihT{7:    }|
                        {14:hsilgnE dila}^v{7:   -}|
-          {15:······yb desopmoc ecnetnes}{7:  +│}|
+          {15:······yb desopmoc }{22:ecnetnes}{7:  +│}|
           {15:··············.evac sih ni}{7:  +│}|
           {1:                             ~}|*2
           {11:-- VISUAL LINE --}             |

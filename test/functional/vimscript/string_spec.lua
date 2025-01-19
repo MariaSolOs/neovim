@@ -1,14 +1,16 @@
-local t = require('test.functional.testutil')()
-local clear = t.clear
+local t = require('test.testutil')
+local n = require('test.functional.testnvim')()
+
+local clear = n.clear
 local eq = t.eq
-local command = t.command
-local api = t.api
-local eval = t.eval
-local exc_exec = t.exc_exec
+local command = n.command
+local api = n.api
+local eval = n.eval
+local exc_exec = n.exc_exec
 local pcall_err = t.pcall_err
-local fn = t.fn
+local fn = n.fn
 local NIL = vim.NIL
-local source = t.source
+local source = n.source
 
 describe('string() function', function()
   before_each(clear)
@@ -168,9 +170,9 @@ describe('string() function', function()
       )
     end)
 
-    it('does not show errors when dumping partials referencing the same dictionary', function()
+    it('does not show errors when dumping partials referencing the same dict', function()
       command('let d = {}')
-      -- Regression for “eval/typval_encode: Dump empty dictionary before
+      -- Regression for “eval/typval_encode: Dump empty dict before
       -- checking for refcycle”, results in error.
       eq(
         "[function('tr', {}), function('tr', {})]",
@@ -254,7 +256,7 @@ describe('string() function', function()
   end)
 
   describe('used to represent dictionaries', function()
-    it('dumps empty dictionary', function()
+    it('dumps empty dict', function()
       eq('{}', eval('string({})'))
     end)
 
@@ -265,7 +267,7 @@ describe('string() function', function()
       eq("[{}, function('tr', {})]", eval('string([d, function("tr", d)])'))
     end)
 
-    it('dumps non-empty dictionary', function()
+    it('dumps non-empty dict', function()
       eq("{'t''est': 1}", fn.string({ ["t'est"] = 1 }))
     end)
 

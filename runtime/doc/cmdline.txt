@@ -41,15 +41,19 @@ thus you cannot edit beyond that.
 The command-lines that you enter are remembered in a history table.  You can
 recall them with the up and down cursor keys.  There are actually five
 history tables:
+
 - one for ':' commands
 - one for search strings
 - one for expressions
 - one for input lines, typed for the |input()| function.
 - one for debug mode commands
+
 These are completely separate.  Each history can only be accessed when
 entering the same type of line.
 Use the 'history' option to set the number of lines that are remembered.
+
 Notes:
+
 - When you enter a command-line that is exactly the same as an older one, the
   old one is removed (to avoid repeated commands moving older commands out of
   the history).
@@ -348,7 +352,8 @@ terminals)
 
 :keepp[atterns] {command}			*:keepp* *:keeppatterns*
 		Execute {command}, without adding anything to the search
-		history
+		history and, in case of |:s| or |:&|, without modifying the
+		last substitute pattern or substitute string.
 
 ==============================================================================
 2. Command-line completion				*cmdline-completion*
@@ -448,13 +453,13 @@ The 'wildignorecase' option can be set to ignore case in filenames.  For
 completing other texts (e.g. command names), the 'ignorecase' option is used
 instead (fuzzy matching always ignores case, however).
 
-If you like tcsh's autolist completion, you can use this mapping:
+If you like tcsh's autolist completion, you can use this mapping: >
 	:cnoremap X <C-L><C-D>
 (Where X is the command key to use, <C-L> is CTRL-L and <C-D> is CTRL-D)
 This will find the longest match and then list all matching files.
 
 If you like tcsh's autolist completion, you can use the 'wildmode' option to
-emulate it.  For example, this mimics autolist=ambiguous:
+emulate it.  For example, this mimics autolist=ambiguous: >
 	:set wildmode=longest,list
 This will find the longest match with the first 'wildchar', then list all
 matching files with the next.
@@ -1217,10 +1222,10 @@ Thus you can resize the command-line window, but not others.
 The |getcmdwintype()| function returns the type of the command-line being
 edited as described in |cmdwin-char|.
 
-Nvim defines this default CmdWinEnter autocmd in the "nvim_cmdwin" group: >
+Nvim defines this default CmdWinEnter autocmd in the "nvim.cmdwin" group: >
     autocmd CmdWinEnter [:>] syntax sync minlines=1 maxlines=1
 <
-You can disable this in your config with "autocmd! nvim_cmdwin". |default-autocmds|
+You can disable this in your config with "autocmd! nvim.cmdwin". |default-autocmds|
 
 
 AUTOCOMMANDS

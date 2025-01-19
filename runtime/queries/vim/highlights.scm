@@ -126,6 +126,7 @@
   "view"
   "eval"
   "sign"
+  "abort"
 ] @keyword
 
 (map_statement
@@ -277,8 +278,6 @@
   "/"
   "%"
   ".."
-  "is"
-  "isnot"
   "=="
   "!="
   ">"
@@ -288,6 +287,7 @@
   "=~"
   "!~"
   "="
+  "^="
   "+="
   "-="
   "*="
@@ -297,8 +297,14 @@
   "..="
   "<<"
   "=<<"
+  "->"
   (match_case)
 ] @operator
+
+[
+  "is"
+  "isnot"
+] @keyword.operator
 
 ; Some characters have different meanings based on the context
 (unary_operation

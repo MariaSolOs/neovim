@@ -1,21 +1,23 @@
-local t = require('test.functional.testutil')()
+local t = require('test.testutil')
+local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
-local clear = t.clear
+
+local clear = n.clear
 local eq = t.eq
 local ok = t.ok
-local describe_lua_and_rpc = t.describe_lua_and_rpc(describe)
-local api = t.api
-local fn = t.fn
-local request = t.request
-local exc_exec = t.exc_exec
-local exec_lua = t.exec_lua
-local feed_command = t.feed_command
-local insert = t.insert
+local describe_lua_and_rpc = n.describe_lua_and_rpc(describe)
+local api = n.api
+local fn = n.fn
+local request = n.request
+local exc_exec = n.exc_exec
+local exec_lua = n.exec_lua
+local feed_command = n.feed_command
+local insert = n.insert
 local NIL = vim.NIL
-local command = t.command
-local feed = t.feed
+local command = n.command
+local feed = n.feed
 local pcall_err = t.pcall_err
-local assert_alive = t.assert_alive
+local assert_alive = n.assert_alive
 
 describe('api/buf', function()
   before_each(clear)
@@ -123,12 +125,6 @@ describe('api/buf', function()
 
     it('cursor position is maintained consistently with viewport', function()
       local screen = Screen.new(20, 12)
-      screen:set_default_attr_ids {
-        [1] = { bold = true, foreground = Screen.colors.Blue1 },
-        [2] = { reverse = true, bold = true },
-        [3] = { reverse = true },
-      }
-      screen:attach()
 
       local lines = { 'line1', 'line2', 'line3', 'line4', 'line5', 'line6' }
       local buf = api.nvim_get_current_buf()
@@ -141,11 +137,11 @@ describe('api/buf', function()
         grid = [[
         ^                    |
         {1:~                   }|*4
-        {2:[No Name]           }|
+        {3:[No Name]           }|
         line5               |
         line6               |
         {1:~                   }|*2
-        {3:[No Name] [+]       }|
+        {2:[No Name] [+]       }|
                             |
       ]],
       }
@@ -156,11 +152,11 @@ describe('api/buf', function()
         grid = [[
         ^                    |
         {1:~                   }|*4
-        {2:[No Name]           }|
+        {3:[No Name]           }|
         boogalo 5           |
         line6               |
         {1:~                   }|*2
-        {3:[No Name] [+]       }|
+        {2:[No Name] [+]       }|
                             |
       ]],
       }
@@ -170,11 +166,11 @@ describe('api/buf', function()
         grid = [[
                             |
         {1:~                   }|*4
-        {3:[No Name]           }|
+        {2:[No Name]           }|
         boogalo 5           |
         ^line6               |
         {1:~                   }|*2
-        {2:[No Name] [+]       }|
+        {3:[No Name] [+]       }|
                             |
       ]],
       }
@@ -214,12 +210,6 @@ describe('api/buf', function()
       local screen
       before_each(function()
         screen = Screen.new(20, 12)
-        screen:set_default_attr_ids {
-          [1] = { bold = true, foreground = Screen.colors.Blue1 },
-          [2] = { reverse = true, bold = true },
-          [3] = { reverse = true },
-        }
-        screen:attach()
         api.nvim_buf_set_lines(
           0,
           0,
@@ -241,12 +231,12 @@ describe('api/buf', function()
           grid = [[
                               |
           {1:~                   }|*4
-          {3:[No Name]           }|
+          {2:[No Name]           }|
           www                 |
           xxx                 |
           yyy                 |
           ^zzz                 |
-          {2:[No Name]           }|
+          {3:[No Name]           }|
                               |
         ]],
         }
@@ -256,12 +246,12 @@ describe('api/buf', function()
           grid = [[
                               |
           {1:~                   }|*4
-          {3:[No Name]           }|
+          {2:[No Name]           }|
           www                 |
           xxx                 |
           yyy                 |
           ^zzz                 |
-          {2:[No Name] [+]       }|
+          {3:[No Name] [+]       }|
                               |
         ]],
         }
@@ -272,12 +262,12 @@ describe('api/buf', function()
           grid = [[
                               |
           {1:~                   }|*4
-          {3:[No Name]           }|
+          {2:[No Name]           }|
           wwweeee             |
           xxx                 |
           yyy                 |
           ^zzz                 |
-          {2:[No Name] [+]       }|
+          {3:[No Name] [+]       }|
                               |
         ]],
         }
@@ -288,12 +278,12 @@ describe('api/buf', function()
           grid = [[
                               |
           {1:~                   }|*4
-          {3:[No Name]           }|
+          {2:[No Name]           }|
           wwweeee             |
           xxx                 |
           yyy                 |
           ^zzz                 |
-          {2:[No Name] [+]       }|
+          {3:[No Name] [+]       }|
                               |
         ]],
           unchanged = true,
@@ -304,12 +294,12 @@ describe('api/buf', function()
           grid = [[
                               |
           {1:~                   }|*4
-          {3:[No Name]           }|
+          {2:[No Name]           }|
           wwweeee             |
           xxx                 |
           ^yyy                 |
           zzz                 |
-          {2:[No Name] [+]       }|
+          {3:[No Name] [+]       }|
                               |
         ]],
         }
@@ -319,12 +309,12 @@ describe('api/buf', function()
           grid = [[
                               |
           {1:~                   }|*4
-          {3:[No Name]           }|
+          {2:[No Name]           }|
           mmmeeeee            |
           wwweeee             |
           xxx                 |
           ^yyy                 |
-          {2:[No Name] [+]       }|
+          {3:[No Name] [+]       }|
                               |
         ]],
         }
@@ -341,12 +331,12 @@ describe('api/buf', function()
           grid = [[
           ^                    |
           {1:~                   }|*4
-          {2:[No Name]           }|
+          {3:[No Name]           }|
           www                 |
           xxx                 |
           yyy                 |
           zzz                 |
-          {3:[No Name]           }|
+          {2:[No Name]           }|
                               |
         ]],
         }
@@ -356,12 +346,12 @@ describe('api/buf', function()
           grid = [[
           ^                    |
           {1:~                   }|*4
-          {2:[No Name]           }|
+          {3:[No Name]           }|
           www                 |
           xxx                 |
           yyy                 |
           zzz                 |
-          {3:[No Name] [+]       }|
+          {2:[No Name] [+]       }|
                               |
         ]],
         }
@@ -372,12 +362,12 @@ describe('api/buf', function()
           grid = [[
           ^                    |
           {1:~                   }|*4
-          {2:[No Name]           }|
+          {3:[No Name]           }|
           wwweeee             |
           xxx                 |
           yyy                 |
           zzz                 |
-          {3:[No Name] [+]       }|
+          {2:[No Name] [+]       }|
                               |
         ]],
         }
@@ -387,12 +377,12 @@ describe('api/buf', function()
           grid = [[
           ^                    |
           {1:~                   }|*4
-          {2:[No Name]           }|
+          {3:[No Name]           }|
           wwweeee             |
           xxx                 |
           yyy                 |
           zzz                 |
-          {3:[No Name] [+]       }|
+          {2:[No Name] [+]       }|
                               |
         ]],
           unchanged = true,
@@ -414,12 +404,12 @@ describe('api/buf', function()
           ccc                 |
           ddd                 |
           www                 |
-          {2:[No Name]           }|
+          {3:[No Name]           }|
           www                 |
           xxx                 |
           yyy                 |
           zzz                 |
-          {3:[No Name]           }|
+          {2:[No Name]           }|
                               |
         ]],
         }
@@ -432,12 +422,12 @@ describe('api/buf', function()
           ddd                 |
           www                 |
           xxx                 |
-          {2:[No Name] [+]       }|
+          {3:[No Name] [+]       }|
           www                 |
           xxx                 |
           yyy                 |
           zzz                 |
-          {3:[No Name] [+]       }|
+          {2:[No Name] [+]       }|
                               |
         ]],
         }
@@ -451,12 +441,12 @@ describe('api/buf', function()
           ddd                 |
           wwweeee             |
           xxx                 |
-          {2:[No Name] [+]       }|
+          {3:[No Name] [+]       }|
           wwweeee             |
           xxx                 |
           yyy                 |
           zzz                 |
-          {3:[No Name] [+]       }|
+          {2:[No Name] [+]       }|
                               |
         ]],
         }
@@ -469,12 +459,12 @@ describe('api/buf', function()
           ddd                 |
           mmm                 |
           wwweeee             |
-          {2:[No Name] [+]       }|
+          {3:[No Name] [+]       }|
           wwweeee             |
           xxx                 |
           yyy                 |
           zzz                 |
-          {3:[No Name] [+]       }|
+          {2:[No Name] [+]       }|
                               |
         ]],
         }
@@ -743,11 +733,6 @@ describe('api/buf', function()
 
     it("set_lines of invisible buffer doesn't move cursor in current window", function()
       local screen = Screen.new(20, 5)
-      screen:set_default_attr_ids({
-        [1] = { bold = true, foreground = Screen.colors.Blue1 },
-        [2] = { bold = true },
-      })
-      screen:attach()
 
       insert([[
         Who would win?
@@ -769,7 +754,7 @@ describe('api/buf', function()
         A real window       |
         with proper tex^t    |
         {1:~                   }|
-        {2:-- INSERT --}        |
+        {5:-- INSERT --}        |
       ]])
     end)
 
@@ -1701,7 +1686,6 @@ describe('api/buf', function()
 
     it('correctly marks changed region for redraw #13890', function()
       local screen = Screen.new(20, 5)
-      screen:attach()
 
       insert([[
       AAA
@@ -1754,12 +1738,6 @@ describe('api/buf', function()
       local screen
       before_each(function()
         screen = Screen.new(20, 12)
-        screen:set_default_attr_ids {
-          [1] = { bold = true, foreground = Screen.colors.Blue1 },
-          [2] = { reverse = true, bold = true },
-          [3] = { reverse = true },
-        }
-        screen:attach()
         api.nvim_buf_set_lines(
           0,
           0,
@@ -1781,12 +1759,12 @@ describe('api/buf', function()
           grid = [[
                               |
           {1:~                   }|*4
-          {3:[No Name]           }|
+          {2:[No Name]           }|
           www                 |
           xxx                 |
           yyy                 |
           ^zzz                 |
-          {2:[No Name]           }|
+          {3:[No Name]           }|
                               |
         ]],
         }
@@ -1796,12 +1774,12 @@ describe('api/buf', function()
           grid = [[
                               |
           {1:~                   }|*4
-          {3:[No Name]           }|
+          {2:[No Name]           }|
           www                 |
           xxx                 |
           yyy                 |
           ^zzz                 |
-          {2:[No Name] [+]       }|
+          {3:[No Name] [+]       }|
                               |
         ]],
         }
@@ -1818,12 +1796,12 @@ describe('api/buf', function()
           grid = [[
           ^                    |
           {1:~                   }|*4
-          {2:[No Name]           }|
+          {3:[No Name]           }|
           www                 |
           xxx                 |
           yyy                 |
           zzz                 |
-          {3:[No Name]           }|
+          {2:[No Name]           }|
                               |
         ]],
         }
@@ -1833,12 +1811,12 @@ describe('api/buf', function()
           grid = [[
           ^                    |
           {1:~                   }|*4
-          {2:[No Name]           }|
+          {3:[No Name]           }|
           www                 |
           xxx                 |
           yyy                 |
           zzz                 |
-          {3:[No Name] [+]       }|
+          {2:[No Name] [+]       }|
                               |
         ]],
         }
@@ -1859,12 +1837,12 @@ describe('api/buf', function()
           ccc                 |
           ddd                 |
           www                 |
-          {2:[No Name]           }|
+          {3:[No Name]           }|
           www                 |
           xxx                 |
           yyy                 |
           zzz                 |
-          {3:[No Name]           }|
+          {2:[No Name]           }|
                               |
         ]],
         }
@@ -1877,12 +1855,12 @@ describe('api/buf', function()
           ddd                 |
           www                 |
           xxx                 |
-          {2:[No Name] [+]       }|
+          {3:[No Name] [+]       }|
           www                 |
           xxx                 |
           yyy                 |
           zzz                 |
-          {3:[No Name] [+]       }|
+          {2:[No Name] [+]       }|
                               |
         ]],
         }
@@ -1908,6 +1886,8 @@ describe('api/buf', function()
       eq({ '' }, get_text(0, 0, 18, 0, 20, {}))
       eq({ 'ext' }, get_text(0, -2, 1, -2, 4, {}))
       eq({ 'hello foo!', 'text', 'm' }, get_text(0, 0, 0, 2, 1, {}))
+      eq({ 'hello foo!' }, get_text(0, 0, -987654321, 0, 987654321, {}))
+      eq({ '' }, get_text(0, 0, -15, 0, -20, {}))
     end)
 
     it('errors on out-of-range', function()
@@ -1921,7 +1901,7 @@ describe('api/buf', function()
 
     it('errors when start is greater than end', function()
       eq("'start' is higher than 'end'", pcall_err(get_text, 0, 1, 0, 0, 0, {}))
-      eq('start_col must be less than end_col', pcall_err(get_text, 0, 0, 1, 0, 0, {}))
+      eq('start_col must be less than or equal to end_col', pcall_err(get_text, 0, 0, 1, 0, 0, {}))
     end)
   end)
 
@@ -2066,7 +2046,7 @@ describe('api/buf', function()
       end)
 
       after_each(function()
-        t.rmdir(topdir .. '/Xacd')
+        n.rmdir(topdir .. '/Xacd')
       end)
 
       it('does not change cwd with non-current buffer', function()

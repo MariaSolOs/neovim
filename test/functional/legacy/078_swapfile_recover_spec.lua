@@ -3,8 +3,9 @@
 -- restored. We need about 10000 lines of 100 characters to get two levels of
 -- pointer blocks.
 
-local t = require('test.functional.testutil')()
-local clear, expect, source = t.clear, t.expect, t.source
+local n = require('test.functional.testnvim')()
+
+local clear, expect, source = n.clear, n.expect, n.source
 
 describe('78', function()
   setup(clear)
@@ -44,7 +45,7 @@ describe('78', function()
       silent recover Xtest
 
       call delete(g:swapname)
-      new
+      noswapfile new
       call append(0, 'recovery start')
       wincmd w
 

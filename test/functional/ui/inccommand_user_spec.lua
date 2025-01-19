@@ -1,13 +1,15 @@
-local t = require('test.functional.testutil')()
+local t = require('test.testutil')
+local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
-local api = t.api
-local clear = t.clear
+
+local api = n.api
+local clear = n.clear
 local eq = t.eq
-local exec_lua = t.exec_lua
-local insert = t.insert
-local feed = t.feed
-local command = t.command
-local assert_alive = t.assert_alive
+local exec_lua = n.exec_lua
+local insert = n.insert
+local feed = n.feed
+local command = n.command
+local assert_alive = n.assert_alive
 
 -- Implements a :Replace command that works like :substitute and has multibuffer support.
 local setup_replace_cmd = [[
@@ -237,7 +239,6 @@ describe("'inccommand' for user commands", function()
   before_each(function()
     clear()
     screen = Screen.new(40, 17)
-    screen:attach()
     exec_lua(setup_replace_cmd)
     command('set cmdwinheight=5')
     insert [[
@@ -506,6 +507,39 @@ describe("'inccommand' for user commands", function()
     feed(':Test')
     eq('nosplit', api.nvim_get_option_value('inccommand', {}))
   end)
+
+  it('does not flush intermediate cursor position at end of message grid', function()
+    exec_lua([[
+      vim.api.nvim_create_user_command('Test', function() end, {
+        nargs = '*',
+        preview = function(_, _, _)
+          vim.api.nvim_buf_set_text(0, 0, 0, 1, -1, { "Preview" })
+          vim.cmd.sleep("1m")
+          return 1
+        end
+      })
+    ]])
+    local cursor_goto = screen._handle_grid_cursor_goto
+    screen._handle_grid_cursor_goto = function(...)
+      cursor_goto(...)
+      assert(screen._cursor.col < 12)
+    end
+    feed(':Test baz<Left><Left>arb')
+    screen:expect({
+      grid = [[
+        Preview                                 |
+          oh no, even more text                 |
+          will the text ever stop               |
+          oh well                               |
+          did the text stop                     |
+          why won't it stop                     |
+          make the text stop                    |
+                                                |
+        {1:~                                       }|*8
+        :Test barb^az                            |
+      ]],
+    })
+  end)
 end)
 
 describe("'inccommand' with multiple buffers", function()
@@ -514,7 +548,6 @@ describe("'inccommand' with multiple buffers", function()
   before_each(function()
     clear()
     screen = Screen.new(40, 17)
-    screen:attach()
     exec_lua(setup_replace_cmd)
     command('set cmdwinheight=10')
     insert [[

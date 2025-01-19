@@ -1,14 +1,15 @@
-local t = require('test.functional.testutil')()
+local t = require('test.testutil')
+local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
 
-local clear = t.clear
-local command = t.command
+local clear = n.clear
+local command = n.command
 local dedent = t.dedent
 local eq = t.eq
-local fn = t.fn
-local eval = t.eval
-local exec = t.exec
-local feed = t.feed
+local fn = n.fn
+local eval = n.eval
+local exec = n.exec
+local feed = n.feed
 
 describe(':autocmd', function()
   before_each(function()
@@ -42,12 +43,9 @@ describe(':autocmd', function()
 
   it('should not show group information if interrupted', function()
     local screen = Screen.new(50, 6)
-    screen:set_default_attr_ids({
-      [1] = { bold = true, foreground = Screen.colors.Blue1 }, -- NonText
-      [2] = { bold = true, foreground = Screen.colors.SeaGreen }, -- MoreMsg
-      [3] = { bold = true, foreground = Screen.colors.Magenta }, -- Title
-    })
-    screen:attach()
+    screen:add_extra_attr_ids {
+      [100] = { foreground = Screen.colors.Magenta, bold = true },
+    }
     exec([[
       set more
       autocmd! BufEnter
@@ -72,11 +70,11 @@ describe(':autocmd', function()
     feed(':autocmd<CR>')
     screen:expect([[
       :autocmd                                          |
-      {3:--- Autocommands ---}                              |
-      {3:test_1}  {3:BufEnter}                                  |
+      {100:--- Autocommands ---}                              |
+      {100:test_1}  {100:BufEnter}                                  |
           A         echo 'A'                            |
           B         echo 'B'                            |
-      {2:-- More --}^                                        |
+      {6:-- More --}^                                        |
     ]])
     feed('q')
     screen:expect([[

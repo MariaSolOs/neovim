@@ -1,14 +1,15 @@
-local t = require('test.functional.testutil')()
+local t = require('test.testutil')
+local n = require('test.functional.testnvim')()
+local Screen = require('test.functional.ui.screen')
 
 local eq = t.eq
 local dedent = t.dedent
-local exec = t.exec
-local feed = t.feed
-local clear = t.clear
-local fn = t.fn
-local command = t.command
-local api = t.api
-local Screen = require('test.functional.ui.screen')
+local exec = n.exec
+local feed = n.feed
+local clear = n.clear
+local fn = n.fn
+local command = n.command
+local api = n.api
 
 local cmdtest = function(cmd, prep, ret1)
   describe(':' .. cmd, function()
@@ -22,7 +23,7 @@ local cmdtest = function(cmd, prep, ret1)
     end
 
     it(cmd .. 's' .. prep .. ' the current line by default', function()
-      command(cmd .. '\nabc\ndef\n')
+      command(cmd .. '\nabc\ndef')
       eq(ret1, buffer_contents())
     end)
     -- Used to crash because this invokes history processing which uses
@@ -64,7 +65,6 @@ describe('the first line is redrawn correctly after inserting text in an empty b
       [1] = { bold = true, foreground = Screen.colors.Blue },
       [2] = { bold = true, reverse = true },
     })
-    screen:attach()
   end)
 
   it('using :append', function()

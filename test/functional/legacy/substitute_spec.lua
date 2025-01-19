@@ -2,12 +2,14 @@
 -- Test for submatch() on substitute().
 -- Test for *:s%* on :substitute.
 
-local t = require('test.functional.testutil')()
+local t = require('test.testutil')
+local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
-local feed, insert = t.feed, t.insert
-local exec = t.exec
-local clear, feed_command, expect = t.clear, t.feed_command, t.expect
-local eq, eval = t.eq, t.eval
+
+local feed, insert = n.feed, n.insert
+local exec = n.exec
+local clear, feed_command, expect = n.clear, n.feed_command, n.expect
+local eq, eval = t.eq, n.eval
 
 describe('substitute()', function()
   before_each(clear)
@@ -209,7 +211,6 @@ describe(':substitute', function()
 
   it('first char is highlighted with confirmation dialog and empty match', function()
     local screen = Screen.new(60, 8)
-    screen:attach()
     exec([[
       set nohlsearch noincsearch
       call setline(1, ['one', 'two', 'three'])
@@ -219,8 +220,10 @@ describe(':substitute', function()
       {2:o}ne                                                         |
       two                                                         |
       three                                                       |
-      {1:~                                                           }|*4
-      {6:replace with     (y/n/a/q/l/^E/^Y)?}^                         |
+      {1:~                                                           }|*2
+      {3:                                                            }|
+      {6:replace with    ? (y)es/(n)o/(a)ll/(q)uit/(l)ast/scroll up(^}|
+      {6:E)/down(^Y)}^                                                 |
     ]])
   end)
 end)

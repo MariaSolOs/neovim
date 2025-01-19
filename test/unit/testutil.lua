@@ -151,6 +151,13 @@ local function filter_complex_blocks(body)
         or string.find(line, 'mach_vm_range_recipe')
       )
     then
+      -- HACK: remove bitfields from specific structs as luajit can't seem to handle them.
+      if line:find('struct VTermState') then
+        line = string.gsub(line, 'state : 8;', 'state;')
+      end
+      if line:find('VTermStringFragment') then
+        line = string.gsub(line, 'size_t.*len : 30;', 'size_t len;')
+      end
       result[#result + 1] = line
     end
   end
@@ -877,7 +884,7 @@ local function is_asan()
 end
 
 --- @class test.unit.testutil.module
-local module = {
+local M = {
   cimport = cimport,
   cppimport = cppimport,
   internalize = internalize,
@@ -907,6 +914,6 @@ local module = {
   is_asan = is_asan,
 }
 --- @class test.unit.testutil: test.unit.testutil.module, test.testutil
-module = vim.tbl_extend('error', module, t_global)
+M = vim.tbl_extend('error', M, t_global)
 
-return module
+return M

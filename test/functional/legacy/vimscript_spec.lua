@@ -1,9 +1,10 @@
-local t = require('test.functional.testutil')()
+local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
-local clear = t.clear
-local exec = t.exec
-local feed = t.feed
-local api = t.api
+
+local clear = n.clear
+local exec = n.exec
+local feed = n.feed
+local api = n.api
 
 before_each(clear)
 
@@ -11,7 +12,6 @@ describe('Vim script', function()
   -- oldtest: Test_deep_nest()
   it('Error when if/for/while/try/function is nested too deep', function()
     local screen = Screen.new(80, 24)
-    screen:attach()
     api.nvim_set_option_value('laststatus', 2, {})
     exec([[
       " Deep nesting of if ... endif
@@ -83,7 +83,6 @@ describe('Vim script', function()
   -- oldtest: Test_typed_script_var()
   it('using s: with a typed command', function()
     local screen = Screen.new(80, 24)
-    screen:attach()
     feed(":echo get(s:, 'foo', 'x')\n")
     screen:expect({ any = 'E116: ' })
   end)

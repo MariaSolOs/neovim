@@ -1,6 +1,7 @@
-local t = require('test.functional.testutil')()
+local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
-local clear, feed, exec, command = t.clear, t.feed, t.exec, t.command
+
+local clear, feed, exec, command = n.clear, n.feed, n.exec, n.command
 
 describe('search stat', function()
   local screen
@@ -14,7 +15,6 @@ describe('search stat', function()
       [4] = { reverse = true }, -- IncSearch, TabLineFill
       [5] = { foreground = Screen.colors.Red }, -- WarningMsg
     })
-    screen:attach()
   end)
 
   -- oldtest: Test_search_stat_screendump()

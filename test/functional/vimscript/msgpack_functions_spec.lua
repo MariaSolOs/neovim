@@ -1,10 +1,12 @@
-local t = require('test.functional.testutil')()
-local clear = t.clear
-local fn = t.fn
-local eval, eq = t.eval, t.eq
-local command = t.command
-local api = t.api
-local exc_exec = t.exc_exec
+local t = require('test.testutil')
+local n = require('test.functional.testnvim')()
+
+local clear = n.clear
+local fn = n.fn
+local eval, eq = n.eval, t.eq
+local command = n.command
+local api = n.api
+local exc_exec = n.exc_exec
 local is_os = t.is_os
 
 describe('msgpack*() functions', function()
@@ -369,13 +371,14 @@ describe('msgpack*() functions', function()
     eq(1, eval('dumped ==# dumped2'))
   end)
 
-  it('can restore and dump STR string with zero byte', function()
+  it('can restore and dump STR string contents with zero byte', function()
     command('let dumped = ["\\xA1\\n"]')
     command('let parsed = msgpackparse(dumped)')
     command('let dumped2 = msgpackdump(parsed)')
-    eq({ { _TYPE = {}, _VAL = { '\n' } } }, eval('parsed'))
-    eq(1, eval('parsed[0]._TYPE is v:msgpack_types.string'))
-    eq(1, eval('dumped ==# dumped2'))
+    eq({ '\000' }, eval('parsed'))
+    eq(eval('v:t_blob'), eval('type(parsed[0])'))
+    -- type is not preserved: prefer BIN for binary contents
+    eq(0, eval('dumped ==# dumped2'))
   end)
 
   it('can restore and dump BIN string with NL', function()
@@ -426,26 +429,24 @@ describe('msgpackparse() function', function()
     parse_eq({ true }, { '\195' })
   end)
 
-  it('restores FIXSTR as special dict', function()
-    parse_eq({ { _TYPE = {}, _VAL = { 'ab' } } }, { '\162ab' })
-    eq(1, eval('g:parsed[0]._TYPE is v:msgpack_types.string'))
+  it('restores FIXSTR as string', function()
+    parse_eq({ 'ab' }, { '\162ab' })
   end)
 
   it('restores BIN 8 as string', function()
     parse_eq({ 'ab' }, { '\196\002ab' })
   end)
 
-  it('restores FIXEXT1 as special dictionary', function()
+  it('restores FIXEXT1 as special dict', function()
     parse_eq({ { _TYPE = {}, _VAL = { 0x10, { '', '' } } } }, { '\212\016', '' })
     eq(1, eval('g:parsed[0]._TYPE is v:msgpack_types.ext'))
   end)
 
-  it('restores MAP with BIN key as special dictionary', function()
-    parse_eq({ { _TYPE = {}, _VAL = { { 'a', '' } } } }, { '\129\196\001a\196\n' })
-    eq(1, eval('g:parsed[0]._TYPE is v:msgpack_types.map'))
+  it('restores MAP with BIN key as ordinary dict', function()
+    parse_eq({ { a = '' } }, { '\129\196\001a\196\n' })
   end)
 
-  it('restores MAP with duplicate STR keys as special dictionary', function()
+  it('restores MAP with duplicate STR keys as special dict', function()
     command('let dumped = ["\\x82\\xA1a\\xC4\\n\\xA1a\\xC4\\n"]')
     -- FIXME Internal error bug, can't use parse_eq() here
     command('silent! let parsed = msgpackparse(dumped)')
@@ -453,28 +454,28 @@ describe('msgpackparse() function', function()
       {
         _TYPE = {},
         _VAL = {
-          { { _TYPE = {}, _VAL = { 'a' } }, '' },
-          { { _TYPE = {}, _VAL = { 'a' } }, '' },
+          { 'a', '' },
+          { 'a', '' },
         },
       },
     }, eval('parsed'))
     eq(1, eval('g:parsed[0]._TYPE is v:msgpack_types.map'))
-    eq(1, eval('g:parsed[0]._VAL[0][0]._TYPE is v:msgpack_types.string'))
-    eq(1, eval('g:parsed[0]._VAL[1][0]._TYPE is v:msgpack_types.string'))
+    eq(eval('v:t_string'), eval('type(g:parsed[0]._VAL[0][0])'))
+    eq(eval('v:t_string'), eval('type(g:parsed[0]._VAL[1][0])'))
   end)
 
-  it('restores MAP with MAP key as special dictionary', function()
+  it('restores MAP with MAP key as special dict', function()
     parse_eq({ { _TYPE = {}, _VAL = { { {}, '' } } } }, { '\129\128\196\n' })
     eq(1, eval('g:parsed[0]._TYPE is v:msgpack_types.map'))
   end)
 
   it('msgpackparse(systemlist(...)) does not segfault. #3135', function()
-    local cmd = "sort(keys(msgpackparse(systemlist('" .. t.nvim_prog .. " --api-info'))[0]))"
+    local cmd = "sort(keys(msgpackparse(systemlist('" .. n.nvim_prog .. " --api-info'))[0]))"
     eval(cmd)
     eval(cmd) -- do it again (try to force segfault)
     local api_info = eval(cmd) -- do it again
     if is_os('win') then
-      t.assert_alive()
+      n.assert_alive()
       pending('msgpackparse() has a bug on windows')
       return
     end
@@ -509,7 +510,7 @@ describe('msgpackparse() function', function()
     )
   end)
 
-  it('fails to parse a dictionary', function()
+  it('fails to parse a dict', function()
     eq(
       'Vim(call):E899: Argument of msgpackparse() must be a List or Blob',
       exc_exec('call msgpackparse({})')
@@ -763,7 +764,7 @@ describe('msgpackdump() function', function()
     )
   end)
 
-  it('fails to dump a dictionary', function()
+  it('fails to dump a dict', function()
     eq('Vim(call):E686: Argument of msgpackdump() must be a List', exc_exec('call msgpackdump({})'))
   end)
 
@@ -800,7 +801,7 @@ describe('msgpackdump() function', function()
 
   it('can dump NULL string', function()
     dump_eq({ '\196\n' }, '[$XXX_UNEXISTENT_VAR_XXX]')
-    dump_eq({ '\196\n' }, '[{"_TYPE": v:msgpack_types.binary, "_VAL": [$XXX_UNEXISTENT_VAR_XXX]}]')
+    dump_eq({ '\196\n' }, '[v:_null_blob]')
     dump_eq({ '\160' }, '[{"_TYPE": v:msgpack_types.string, "_VAL": [$XXX_UNEXISTENT_VAR_XXX]}]')
   end)
 
@@ -812,7 +813,7 @@ describe('msgpackdump() function', function()
     eq({ '\144' }, eval('msgpackdump([v:_null_list])'))
   end)
 
-  it('can dump NULL dictionary', function()
+  it('can dump NULL dict', function()
     eq({ '\128' }, eval('msgpackdump([v:_null_dict])'))
   end)
 end)

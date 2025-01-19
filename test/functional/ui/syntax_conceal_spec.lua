@@ -1,10 +1,12 @@
-local t = require('test.functional.testutil')()
+local t = require('test.testutil')
+local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
-local clear, feed, command = t.clear, t.feed, t.command
+
+local clear, feed, command = n.clear, n.feed, n.command
 local eq = t.eq
-local insert = t.insert
-local poke_eventloop = t.poke_eventloop
-local exec = t.exec
+local insert = n.insert
+local poke_eventloop = n.poke_eventloop
+local exec = n.exec
 
 describe('Screen', function()
   local screen
@@ -12,7 +14,6 @@ describe('Screen', function()
   before_each(function()
     clear()
     screen = Screen.new(nil, 10)
-    screen:attach()
     screen:set_default_attr_ids({
       [0] = { bold = true, foreground = Screen.colors.Blue },
       [1] = { foreground = Screen.colors.LightGrey, background = Screen.colors.DarkGray },
@@ -197,7 +198,7 @@ describe('Screen', function()
       end)
     end) -- a region of text (implicit concealing)
 
-    it('cursor position is correct when entering Insert mode with cocu=ni #13916', function()
+    it('cursor position when entering Insert mode with cocu=ni #13916', function()
       insert([[foobarfoobarfoobar]])
       -- move to end of line
       feed('$')
@@ -215,6 +216,37 @@ describe('Screen', function()
         {0:~                                                    }|*8
         {4:-- INSERT --}                                         |
       ]])
+    end)
+
+    it('cursor position when scrolling in Normal mode with cocu=n #31271', function()
+      insert(('foo\n'):rep(9) .. 'foofoobarfoofoo' .. ('\nfoo'):rep(9))
+      command('set concealcursor=n')
+      command('syn match Foo /bar/ conceal cchar=&')
+      feed('gg5<C-E>10gg$')
+      screen:expect([[
+        foo                                                  |*4
+        foofoo{1:&}foofo^o                                        |
+        foo                                                  |*4
+                                                             |
+      ]])
+      feed('zz')
+      screen:expect_unchanged()
+      feed('zt')
+      screen:expect([[
+        foofoo{1:&}foofo^o                                        |
+        foo                                                  |*8
+                                                             |
+      ]])
+      feed('zt')
+      screen:expect_unchanged()
+      feed('zb')
+      screen:expect([[
+        foo                                                  |*8
+        foofoo{1:&}foofo^o                                        |
+                                                             |
+      ]])
+      feed('zb')
+      screen:expect_unchanged()
     end)
   end) -- match and conceal
 

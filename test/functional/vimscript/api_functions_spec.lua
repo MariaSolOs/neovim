@@ -1,13 +1,15 @@
-local t = require('test.functional.testutil')()
+local t = require('test.testutil')
+local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
-local neq, eq, command = t.neq, t.eq, t.command
-local clear = t.clear
-local exc_exec, expect, eval = t.exc_exec, t.expect, t.eval
-local exec_lua = t.exec_lua
-local insert, pcall_err = t.insert, t.pcall_err
+
+local neq, eq, command = t.neq, t.eq, n.command
+local clear = n.clear
+local exc_exec, expect, eval = n.exc_exec, n.expect, n.eval
+local exec_lua = n.exec_lua
+local insert, pcall_err = n.insert, t.pcall_err
 local matches = t.matches
-local api = t.api
-local feed = t.feed
+local api = n.api
+local feed = n.feed
 
 describe('eval-API', function()
   before_each(clear)
@@ -113,7 +115,7 @@ describe('eval-API', function()
         exec_lua,
         [[
          local cmdwin_buf = vim.api.nvim_get_current_buf()
-         vim.api.nvim_buf_call(vim.api.nvim_create_buf(false, true), function()
+         vim._with({buf = vim.api.nvim_create_buf(false, true)}, function()
            vim.api.nvim_open_term(cmdwin_buf, {})
          end)
        ]]
@@ -127,8 +129,6 @@ describe('eval-API', function()
   end)
 
   it('use buffer numbers and windows ids as handles', function()
-    local screen = Screen.new(40, 8)
-    screen:attach()
     local bnr = eval("bufnr('')")
     local bhnd = eval('nvim_get_current_buf()')
     local wid = eval('win_getid()')
@@ -179,8 +179,8 @@ describe('eval-API', function()
     eq('Vim(call):E117: Unknown function: buffer_get_line', err)
 
     -- some api functions are only useful from a msgpack-rpc channel
-    err = exc_exec('call nvim_subscribe("fancyevent")')
-    eq('Vim(call):E117: Unknown function: nvim_subscribe', err)
+    err = exc_exec('call nvim_set_client_info()')
+    eq('Vim(call):E117: Unknown function: nvim_set_client_info', err)
   end)
 
   it('have metadata accessible with api_info()', function()
@@ -190,14 +190,6 @@ describe('eval-API', function()
 
   it('are highlighted by vim.vim syntax file', function()
     local screen = Screen.new(40, 8)
-    screen:attach()
-    screen:set_default_attr_ids({
-      [1] = { bold = true, foreground = Screen.colors.Brown },
-      [2] = { foreground = Screen.colors.DarkCyan },
-      [3] = { foreground = Screen.colors.SlateBlue },
-      [4] = { foreground = Screen.colors.Fuchsia },
-      [5] = { bold = true, foreground = Screen.colors.Blue },
-    })
 
     command('set ft=vim')
     command('set rtp^=build/runtime/')
@@ -208,10 +200,10 @@ describe('eval-API', function()
       call not_a_function(42)]])
 
     screen:expect([[
-      {1:call} {2:bufnr}{3:(}{4:'%'}{3:)}                         |
-      {1:call} {2:nvim_input}{3:(}{4:'typing...'}{3:)}            |
-      {1:call} not_a_function{3:(}{4:42}{3:^)}                 |
-      {5:~                                       }|*4
+      {15:call} {25:bufnr}{16:(}{26:'%'}{16:)}                         |
+      {15:call} {25:nvim_input}{16:(}{26:'typing...'}{16:)}            |
+      {15:call} not_a_function{16:(}{26:42}{16:^)}                 |
+      {1:~                                       }|*4
                                               |
     ]])
   end)

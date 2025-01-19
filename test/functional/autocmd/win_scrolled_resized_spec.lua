@@ -1,14 +1,15 @@
-local t = require('test.functional.testutil')()
+local t = require('test.testutil')
+local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
 
-local clear = t.clear
+local clear = n.clear
 local eq = t.eq
-local eval = t.eval
-local exec = t.exec
-local command = t.command
-local feed = t.feed
-local api = t.api
-local assert_alive = t.assert_alive
+local eval = n.eval
+local exec = n.exec
+local command = n.command
+local feed = n.feed
+local api = n.api
+local assert_alive = n.assert_alive
 
 before_each(clear)
 
@@ -224,8 +225,7 @@ end)
 describe('WinScrolled', function()
   -- oldtest: Test_WinScrolled_mouse()
   it('is triggered by mouse scrolling in another window', function()
-    local screen = Screen.new(75, 10)
-    screen:attach()
+    local _ = Screen.new(75, 10)
     exec([[
       set nowrap scrolloff=0
       set mouse=a
@@ -303,7 +303,6 @@ describe('WinScrolled', function()
 
   it('is triggered by mouse scrolling in unfocused floating window #18222', function()
     local screen = Screen.new(80, 24)
-    screen:attach()
 
     exec([[
       let g:scrolled = 0

@@ -1,8 +1,9 @@
-local t = require('test.functional.testutil')()
+local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
-local clear = t.clear
-local exec = t.exec
-local feed = t.feed
+
+local clear = n.clear
+local exec = n.exec
+local feed = n.feed
 
 before_each(clear)
 
@@ -11,7 +12,6 @@ describe('statusline', function()
 
   before_each(function()
     screen = Screen.new(50, 7)
-    screen:attach()
   end)
 
   it('is updated in cmdline mode when using window-local statusline vim-patch:8.2.2737', function()

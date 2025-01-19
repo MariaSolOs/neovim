@@ -95,7 +95,6 @@
 local api = vim.api
 
 -- TODO(tjdevries): Improve option metadata so that this doesn't have to be hardcoded.
---                  Can be done in a separate PR.
 local key_value_options = {
   fillchars = true,
   fcs = true,
@@ -175,6 +174,11 @@ local function new_buf_opt_accessor(bufnr)
 end
 
 local function new_win_opt_accessor(winid, bufnr)
+  -- TODO(lewis6991): allow passing both buf and win to nvim_get_option_value
+  if bufnr ~= nil and bufnr ~= 0 then
+    error('only bufnr=0 is supported')
+  end
+
   return setmetatable({}, {
     __index = function(_, k)
       if bufnr == nil and type(k) == 'number' then
@@ -185,11 +189,6 @@ local function new_win_opt_accessor(winid, bufnr)
         end
       end
 
-      if bufnr ~= nil and bufnr ~= 0 then
-        error('only bufnr=0 is supported')
-      end
-
-      -- TODO(lewis6991): allow passing both buf and win to nvim_get_option_value
       return api.nvim_get_option_value(k, {
         scope = bufnr and 'local' or nil,
         win = winid or 0,
@@ -197,7 +196,6 @@ local function new_win_opt_accessor(winid, bufnr)
     end,
 
     __newindex = function(_, k, v)
-      -- TODO(lewis6991): allow passing both buf and win to nvim_set_option_value
       return api.nvim_set_option_value(k, v, {
         scope = bufnr and 'local' or nil,
         win = winid or 0,
@@ -231,10 +229,8 @@ end
 --- global value of a |global-local| option, see |:setglobal|.
 --- </pre>
 
---- Get or set |options|. Like `:set`. Invalid key is an error.
----
---- Note: this works on both buffer-scoped and window-scoped options using the
---- current buffer and window.
+--- Get or set |options|. Works like `:set`, so buffer/window-scoped options target the current
+--- buffer/window. Invalid key is an error.
 ---
 --- Example:
 ---
@@ -276,10 +272,8 @@ vim.go = setmetatable({}, {
 })
 
 --- Get or set buffer-scoped |options| for the buffer with number {bufnr}.
---- If {bufnr} is omitted then the current buffer is used.
+--- Like `:setlocal`. If {bufnr} is omitted then the current buffer is used.
 --- Invalid {bufnr} or key is an error.
----
---- Note: this is equivalent to `:setlocal` for |global-local| options and `:set` otherwise.
 ---
 --- Example:
 ---
@@ -642,7 +636,7 @@ end
 --- @param t table<any,any>
 --- @param val any
 local function remove_one_item(t, val)
-  if vim.tbl_islist(t) then
+  if vim.islist(t) then
     local remove_index = nil
     for i, v in ipairs(t) do
       if v == val then
@@ -774,7 +768,7 @@ end
 ---
 ---
 --- A special interface |vim.opt| exists for conveniently interacting with list-
---- and map-style option from Lua: It allows accessing them as Lua tables and
+--- and map-style options from Lua: It allows accessing them as Lua tables and
 --- offers object-oriented method for adding and removing entries.
 ---
 ---     Examples: ~

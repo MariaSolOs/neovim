@@ -1,15 +1,16 @@
+local t = require('test.testutil')
+local n = require('test.functional.testnvim')()
+local tt = require('test.functional.testterm')
 local uv = vim.uv
-local t = require('test.functional.testutil')()
-local tt = require('test.functional.terminal.testutil')
 
-local clear, command, testprg = t.clear, t.command, t.testprg
-local eval, eq, neq, retry = t.eval, t.eq, t.neq, t.retry
+local clear, command, testprg = n.clear, n.command, n.testprg
+local eval, eq, neq, retry = n.eval, t.eq, t.neq, t.retry
 local matches = t.matches
 local ok = t.ok
-local feed = t.feed
-local api = t.api
+local feed = n.feed
+local api = n.api
 local pcall_err = t.pcall_err
-local assert_alive = t.assert_alive
+local assert_alive = n.assert_alive
 local skip = t.skip
 local is_os = t.is_os
 
@@ -197,8 +198,11 @@ it('autocmd TermEnter, TermLeave', function()
 end)
 
 describe('autocmd TextChangedT', function()
-  clear()
-  local screen = tt.screen_setup()
+  local screen
+  before_each(function()
+    clear()
+    screen = tt.setup_screen()
+  end)
 
   it('works', function()
     command('autocmd TextChangedT * ++once let g:called = 1')
@@ -209,9 +213,11 @@ describe('autocmd TextChangedT', function()
   end)
 
   it('cannot delete terminal buffer', function()
-    command([[autocmd TextChangedT * call nvim_input('<CR>') | bwipe!]])
+    command('autocmd TextChangedT * bwipe!')
     tt.feed_data('a')
     screen:expect({ any = 'E937: ' })
+    feed('<CR>')
+    command('autocmd! TextChangedT')
     matches(
       '^E937: Attempt to delete a buffer that is in use: term://',
       api.nvim_get_vvar('errmsg')

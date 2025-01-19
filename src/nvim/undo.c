@@ -89,9 +89,9 @@
 #include "nvim/buffer_updates.h"
 #include "nvim/change.h"
 #include "nvim/cursor.h"
-#include "nvim/decoration.h"
 #include "nvim/drawscreen.h"
 #include "nvim/edit.h"
+#include "nvim/errors.h"
 #include "nvim/eval/funcs.h"
 #include "nvim/eval/typval.h"
 #include "nvim/ex_cmds_defs.h"
@@ -106,12 +106,10 @@
 #include "nvim/getchar.h"
 #include "nvim/gettext_defs.h"
 #include "nvim/globals.h"
-#include "nvim/highlight.h"
 #include "nvim/highlight_defs.h"
 #include "nvim/macros_defs.h"
 #include "nvim/mark.h"
 #include "nvim/mark_defs.h"
-#include "nvim/marktree_defs.h"
 #include "nvim/mbyte.h"
 #include "nvim/memline.h"
 #include "nvim/memline_defs.h"
@@ -342,8 +340,7 @@ static OptInt get_undolevel(buf_T *buf)
 static inline void zero_fmark_additional_data(fmark_T *fmarks)
 {
   for (size_t i = 0; i < NMARKS; i++) {
-    tv_dict_unref(fmarks[i].additional_data);
-    fmarks[i].additional_data = NULL;
+    XFREE_CLEAR(fmarks[i].additional_data);
   }
 }
 
@@ -1131,17 +1128,11 @@ static void serialize_pos(bufinfo_T *bi, pos_T pos)
 static void unserialize_pos(bufinfo_T *bi, pos_T *pos)
 {
   pos->lnum = undo_read_4c(bi);
-  if (pos->lnum < 0) {
-    pos->lnum = 0;
-  }
+  pos->lnum = MAX(pos->lnum, 0);
   pos->col = undo_read_4c(bi);
-  if (pos->col < 0) {
-    pos->col = 0;
-  }
+  pos->col = MAX(pos->col, 0);
   pos->coladd = undo_read_4c(bi);
-  if (pos->coladd < 0) {
-    pos->coladd = 0;
-  }
+  pos->coladd = MAX(pos->coladd, 0);
 }
 
 /// Serializes "info".
@@ -1208,14 +1199,12 @@ void u_write_undo(const char *const name, const bool forceit, buf_T *const buf, 
   // Strip any sticky and executable bits.
   perm = perm & 0666;
 
-  int fd;
-
   // If the undo file already exists, verify that it actually is an undo
   // file, and delete it.
   if (os_path_exists(file_name)) {
     if (name == NULL || !forceit) {
       // Check we can read it and it's an undo file.
-      fd = os_open(file_name, O_RDONLY, 0);
+      int fd = os_open(file_name, O_RDONLY, 0);
       if (fd < 0) {
         if (name != NULL || p_verbose > 0) {
           if (name == NULL) {
@@ -1260,7 +1249,7 @@ void u_write_undo(const char *const name, const bool forceit, buf_T *const buf, 
     goto theend;
   }
 
-  fd = os_open(file_name, O_CREAT|O_WRONLY|O_EXCL|O_NOFOLLOW, perm);
+  int fd = os_open(file_name, O_CREAT|O_WRONLY|O_EXCL|O_NOFOLLOW, perm);
   if (fd < 0) {
     semsg(_(e_not_open), file_name);
     goto theend;
@@ -1870,6 +1859,7 @@ static void u_doit(int startcount, bool quiet, bool do_buf_event)
     u_oldcount = -1;
   }
 
+  msg_ext_set_kind("undo");
   int count = startcount;
   while (count--) {
     // Do the change warning now, so that it triggers FileChangedRO when
@@ -2000,9 +1990,7 @@ void undo_time(int step, bool sec, bool file, bool absolute)
       target = curbuf->b_u_seq_cur + step;
     }
     if (step < 0) {
-      if (target < 0) {
-        target = 0;
-      }
+      target = MAX(target, 0);
       closest = -1;
     } else {
       if (dosec) {
@@ -2395,9 +2383,7 @@ static void u_undoredo(bool undo, bool do_buf_event)
     }
 
     // Set the '[ mark.
-    if (top + 1 < curbuf->b_op_start.lnum) {
-      curbuf->b_op_start.lnum = top + 1;
-    }
+    curbuf->b_op_start.lnum = MIN(curbuf->b_op_start.lnum, top + 1);
     // Set the '] mark.
     if (newsize == 0 && top + 1 > curbuf->b_op_end.lnum) {
       curbuf->b_op_end.lnum = top + 1;
@@ -2418,12 +2404,8 @@ static void u_undoredo(bool undo, bool do_buf_event)
   }
 
   // Ensure the '[ and '] marks are within bounds.
-  if (curbuf->b_op_start.lnum > curbuf->b_ml.ml_line_count) {
-    curbuf->b_op_start.lnum = curbuf->b_ml.ml_line_count;
-  }
-  if (curbuf->b_op_end.lnum > curbuf->b_ml.ml_line_count) {
-    curbuf->b_op_end.lnum = curbuf->b_ml.ml_line_count;
-  }
+  curbuf->b_op_start.lnum = MIN(curbuf->b_op_start.lnum, curbuf->b_ml.ml_line_count);
+  curbuf->b_op_end.lnum = MIN(curbuf->b_op_end.lnum, curbuf->b_ml.ml_line_count);
 
   // Adjust Extmarks
   if (undo) {
@@ -2544,7 +2526,7 @@ static void u_undoredo(bool undo, bool do_buf_event)
 /// @param absolute  used ":undo N"
 static void u_undo_end(bool did_undo, bool absolute, bool quiet)
 {
-  if ((fdo_flags & FDO_UNDO) && KeyTyped) {
+  if ((fdo_flags & kOptFdoFlagUndo) && KeyTyped) {
     foldOpenCursor();
   }
 
@@ -2611,13 +2593,12 @@ static void u_undo_end(bool did_undo, bool absolute, bool quiet)
     check_pos(curbuf, &VIsual);
   }
 
-  smsg_attr_keep(0,
-                 _("%" PRId64 " %s; %s #%" PRId64 "  %s"),
-                 u_oldcount < 0 ? (int64_t)-u_oldcount : (int64_t)u_oldcount,
-                 _(msgstr),
-                 did_undo ? _("before") : _("after"),
-                 uhp == NULL ? 0 : (int64_t)uhp->uh_seq,
-                 msgbuf);
+  smsg_keep(0, _("%" PRId64 " %s; %s #%" PRId64 "  %s"),
+            u_oldcount < 0 ? (int64_t)-u_oldcount : (int64_t)u_oldcount,
+            _(msgstr),
+            did_undo ? _("before") : _("after"),
+            uhp == NULL ? 0 : (int64_t)uhp->uh_seq,
+            msgbuf);
 }
 
 /// Put the timestamp of an undo header in "buf[buflen]" in a nice format.
@@ -2729,8 +2710,7 @@ void ex_undolist(exarg_T *eap)
     sort_strings(ga.ga_data, ga.ga_len);
 
     msg_start();
-    msg_puts_attr(_("number changes  when               saved"),
-                  HL_ATTR(HLF_T));
+    msg_puts_hl(_("number changes  when               saved"), HLF_T, false);
     for (int i = 0; i < ga.ga_len && !got_int; i++) {
       msg_putchar('\n');
       if (got_int) {

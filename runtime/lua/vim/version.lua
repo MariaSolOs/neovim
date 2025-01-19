@@ -174,6 +174,10 @@ function M._version(version, strict) -- Adapted from https://github.com/folke/la
     version = version:match('%d[^ ]*')
   end
 
+  if version == nil then
+    return nil
+  end
+
   local prerel = version:match('%-([^+]*)')
   local prerel_strict = version:match('%-([0-9A-Za-z-]*)')
   if
@@ -223,8 +227,7 @@ end
 ---@field to? vim.Version
 local VersionRange = {}
 
---- @private
----
+---@nodoc
 ---@param version string|vim.Version
 function VersionRange:has(version)
   if type(version) == 'string' then
@@ -272,6 +275,7 @@ end
 --- ```
 ---
 --- @see # https://github.com/npm/node-semver#ranges
+--- @since 11
 ---
 --- @param spec string Version range "spec"
 --- @return vim.VersionRange?
@@ -371,6 +375,7 @@ end
 --- ```
 ---
 --- @note Per semver, build metadata is ignored when comparing two otherwise-equivalent versions.
+--- @since 11
 ---
 ---@param v1 vim.Version|number[]|string Version object.
 ---@param v2 vim.Version|number[]|string Version to compare with `v1`.
@@ -388,6 +393,7 @@ function M.cmp(v1, v2)
 end
 
 ---Returns `true` if the given versions are equal. See |vim.version.cmp()| for usage.
+---@since 11
 ---@param v1 vim.Version|number[]|string
 ---@param v2 vim.Version|number[]|string
 ---@return boolean
@@ -396,6 +402,7 @@ function M.eq(v1, v2)
 end
 
 ---Returns `true` if `v1 <= v2`. See |vim.version.cmp()| for usage.
+---@since 12
 ---@param v1 vim.Version|number[]|string
 ---@param v2 vim.Version|number[]|string
 ---@return boolean
@@ -404,6 +411,7 @@ function M.le(v1, v2)
 end
 
 ---Returns `true` if `v1 < v2`. See |vim.version.cmp()| for usage.
+---@since 11
 ---@param v1 vim.Version|number[]|string
 ---@param v2 vim.Version|number[]|string
 ---@return boolean
@@ -412,6 +420,7 @@ function M.lt(v1, v2)
 end
 
 ---Returns `true` if `v1 >= v2`. See |vim.version.cmp()| for usage.
+---@since 12
 ---@param v1 vim.Version|number[]|string
 ---@param v2 vim.Version|number[]|string
 ---@return boolean
@@ -420,6 +429,7 @@ function M.ge(v1, v2)
 end
 
 ---Returns `true` if `v1 > v2`. See |vim.version.cmp()| for usage.
+---@since 11
 ---@param v1 vim.Version|number[]|string
 ---@param v2 vim.Version|number[]|string
 ---@return boolean
@@ -434,7 +444,8 @@ end
 --- { major = 1, minor = 0, patch = 1, prerelease = "rc1", build = "build.2" }
 --- ```
 ---
---- @see # https://semver.org/spec/v2.0.0.html
+---@see # https://semver.org/spec/v2.0.0.html
+---@since 11
 ---
 ---@param version string Version string to parse.
 ---@param opts table|nil Optional keyword arguments:

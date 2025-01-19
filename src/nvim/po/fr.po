@@ -855,8 +855,8 @@ msgstr ""
 "lettres"
 
 #, c-format
-msgid "replace with %s (y/n/a/q/l/^E/^Y)?"
-msgstr "remplacer par %s (y/n/a/q/l/^E/^Y)?"
+msgid "replace with %s? (y)es/(n)o/(a)ll/(q)uit/(l)ast/scroll up(^E)/down(^Y)"
+msgstr "remplacer par %s? (y)es/(n)o/(a)ll/(q)uit/(l)ast/scroll up(^E)/down(^Y)"
 
 msgid "(Interrupted) "
 msgstr "(Interrompu) "
@@ -3241,8 +3241,8 @@ msgstr ""
 msgid "(2) An edit session for this file crashed.\n"
 msgstr "(2) Une session d'édition de ce fichier a planté.\n"
 
-msgid "    If this is the case, use \":recover\" or \"vim -r "
-msgstr "    Si c'est le cas, utilisez \":recover\" ou \"vim -r "
+msgid "    If this is the case, use \":recover\" or \"nvim -r "
+msgstr "    Si c'est le cas, utilisez \":recover\" ou \"nvim -r "
 
 msgid ""
 "\"\n"

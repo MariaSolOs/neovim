@@ -1,11 +1,13 @@
 -- Test for mappings and abbreviations
 
-local t = require('test.functional.testutil')()
+local t = require('test.testutil')
+local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
-local clear, feed, insert = t.clear, t.feed, t.insert
-local expect, poke_eventloop = t.expect, t.poke_eventloop
-local command, eq, eval, api = t.command, t.eq, t.eval, t.api
-local exec = t.exec
+
+local clear, feed, insert = n.clear, n.feed, n.insert
+local expect, poke_eventloop = n.expect, n.poke_eventloop
+local command, eq, eval, api = n.command, t.eq, n.eval, n.api
+local exec = n.exec
 local sleep = vim.uv.sleep
 
 describe('mapping', function()
@@ -194,7 +196,6 @@ describe('mapping', function()
   -- oldtest: Test_showcmd_part_map()
   it("'showcmd' with a partial mapping", function()
     local screen = Screen.new(60, 6)
-    screen:attach()
     exec([[
       set notimeout showcmd
       nnoremap ,a <Ignore>

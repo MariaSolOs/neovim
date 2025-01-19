@@ -1,9 +1,10 @@
-local t = require('test.functional.testutil')()
+local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
-local clear = t.clear
-local command = t.command
-local expect = t.expect
-local feed = t.feed
+
+local clear = n.clear
+local command = n.command
+local expect = n.expect
+local feed = n.feed
 local sleep = vim.uv.sleep
 
 before_each(clear)
@@ -30,7 +31,6 @@ describe('edit', function()
   -- oldtest: Test_edit_insert_reg()
   it('inserting a register using CTRL-R', function()
     local screen = Screen.new(10, 6)
-    screen:attach()
     feed('a<C-R>')
     screen:expect([[
       {18:^"}           |
@@ -43,12 +43,17 @@ describe('edit', function()
       {1:~           }|*4
       =^           |
     ]])
+    feed([['r'<CR><Esc>]])
+    expect('r')
+    -- Test for inserting null and empty list
+    feed('a<C-R>=v:_null_list<CR><Esc>')
+    feed('a<C-R>=[]<CR><Esc>')
+    expect('r')
   end)
 
   -- oldtest: Test_edit_ctrl_r_failed()
   it('positioning cursor after CTRL-R expression failed', function()
     local screen = Screen.new(60, 6)
-    screen:attach()
 
     feed('i<C-R>')
     screen:expect([[

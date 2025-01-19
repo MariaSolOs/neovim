@@ -1,11 +1,13 @@
 -- Test clipboard provider support
 
-local t = require('test.functional.testutil')()
+local t = require('test.testutil')
+local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
-local clear, feed, insert = t.clear, t.feed, t.insert
-local feed_command, expect, eq, eval, source = t.feed_command, t.expect, t.eq, t.eval, t.source
-local command = t.command
-local api = t.api
+
+local clear, feed, insert = n.clear, n.feed, n.insert
+local feed_command, expect, eq, eval, source = n.feed_command, n.expect, t.eq, n.eval, n.source
+local command = n.command
+local api = n.api
 
 local function basic_register_test(noblock)
   insert('some words')
@@ -92,13 +94,6 @@ describe('clipboard', function()
   before_each(function()
     clear()
     screen = Screen.new(72, 4)
-    screen:set_default_attr_ids({
-      [0] = { bold = true, foreground = Screen.colors.Blue },
-      [1] = { foreground = Screen.colors.Grey100, background = Screen.colors.Red },
-      [2] = { bold = true, foreground = Screen.colors.SeaGreen4 },
-      [3] = { bold = true, reverse = true },
-    })
-    screen:attach()
   end)
 
   it('unnamed register works without provider', function()
@@ -112,13 +107,13 @@ describe('clipboard', function()
     feed('"+yl')
     screen:expect([[
       ^a                                                                       |
-      {0:~                                                                       }|*2
+      {1:~                                                                       }|*2
       clipboard: No provider. Try ":checkhealth" or ":h clipboard".           |
     ]])
     feed('"+p')
     screen:expect([[
       a^a                                                                      |
-      {0:~                                                                       }|*2
+      {1:~                                                                       }|*2
       clipboard: No provider. Try ":checkhealth" or ":h clipboard".           |
     ]])
   end)
@@ -130,19 +125,19 @@ describe('clipboard', function()
     feed('yl')
     screen:expect([[
       ^a                                                                       |
-      {0:~                                                                       }|*2
+      {1:~                                                                       }|*2
       clipboard: No provider. Try ":checkhealth" or ":h clipboard".           |
     ]])
     feed(':<CR>')
     screen:expect([[
       ^a                                                                       |
-      {0:~                                                                       }|*2
+      {1:~                                                                       }|*2
       :                                                                       |
     ]])
     feed('p')
     screen:expect([[
       a^a                                                                      |
-      {0:~                                                                       }|*2
+      {1:~                                                                       }|*2
       :                                                                       |
     ]])
   end)
@@ -152,7 +147,7 @@ describe('clipboard', function()
     feed_command('redir @+> | :silent echo system("cat CONTRIBUTING.md") | redir END')
     screen:expect([[
       ^                                                                        |
-      {0:~                                                                       }|*2
+      {1:~                                                                       }|*2
       clipboard: No provider. Try ":checkhealth" or ":h clipboard".           |
     ]])
   end)
@@ -164,8 +159,8 @@ describe('clipboard', function()
       grid = [[
     {3:                                                                        }|
     clipboard: No provider. Try ":checkhealth" or ":h clipboard".           |
-    {1:E492: Not an editor command: bogus_cmd | redir END}                      |
-    {2:Press ENTER or type command to continue}^                                 |
+    {9:E492: Not an editor command: bogus_cmd | redir END}                      |
+    {6:Press ENTER or type command to continue}^                                 |
     ]],
     }
   end)
@@ -180,7 +175,7 @@ describe('clipboard', function()
     feed_command('let @+="foo"')
     screen:expect([[
       ^                                                                        |
-      {0:~                                                                       }|*2
+      {1:~                                                                       }|*2
       clipboard: No provider. Try ":checkhealth" or ":h clipboard".           |
     ]])
   end)
@@ -322,16 +317,11 @@ describe('clipboard (with fake clipboard.vim)', function()
 
   it('`:redir @+>|bogus_cmd|redir END` must not recurse #7184', function()
     local screen = Screen.new(72, 4)
-    screen:attach()
-    screen:set_default_attr_ids({
-      [0] = { bold = true, foreground = Screen.colors.Blue },
-      [1] = { foreground = Screen.colors.Grey100, background = Screen.colors.Red },
-    })
     feed_command('redir @+> | bogus_cmd | redir END')
     screen:expect([[
       ^                                                                        |
-      {0:~                                                                       }|*2
-      {1:E492: Not an editor command: bogus_cmd | redir END}                      |
+      {1:~                                                                       }|*2
+      {9:E492: Not an editor command: bogus_cmd | redir END}                      |
     ]])
   end)
 
@@ -554,7 +544,7 @@ describe('clipboard (with fake clipboard.vim)', function()
       ]])
       feed('gg^<C-v>') -- Goto start of top line enter visual block mode
       feed('3ljy^k') -- yank 4x2 block & goto initial location
-      feed('P') -- Paste it infront
+      feed('P') -- Paste it before cursor
       expect([[
         aabbaabbcc
         ddeeddeeff
@@ -649,7 +639,6 @@ describe('clipboard (with fake clipboard.vim)', function()
 
   it('supports "+ and "* in registers', function()
     local screen = Screen.new(60, 10)
-    screen:attach()
     feed_command("let g:test_clip['*'] = ['some', 'star data','']")
     feed_command("let g:test_clip['+'] = ['such', 'plus', 'stuff']")
     feed_command('registers')
@@ -717,10 +706,6 @@ describe('clipboard (with fake clipboard.vim)', function()
     feed_command('set mouse=a')
 
     local screen = Screen.new(30, 5)
-    screen:set_default_attr_ids({
-      [0] = { bold = true, foreground = Screen.colors.Blue },
-    })
-    screen:attach()
     insert([[
       the source
       a target]])
@@ -729,7 +714,7 @@ describe('clipboard (with fake clipboard.vim)', function()
     screen:expect([[
       the ^source                    |
       a target                      |
-      {0:~                             }|*2
+      {1:~                             }|*2
                                     |
     ]])
 

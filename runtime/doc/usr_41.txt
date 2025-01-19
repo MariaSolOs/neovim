@@ -794,6 +794,7 @@ Cursor and mark position:		*cursor-functions* *mark-functions*
 Working with text in the current buffer:		*text-functions*
 	getline()		get a line or list of lines from the buffer
 	getregion()		get a region of text from the buffer
+	getregionpos()		get a list of positions for a region
 	setline()		replace a line in the buffer
 	append()		append line or list of lines in the buffer
 	indent()		indent of a specific line
@@ -835,6 +836,7 @@ System functions and manipulation of files:
 	getfperm()		get the permissions of a file
 	setfperm()		set the permissions of a file
 	getftype()		get the kind of a file
+	isabsolutepath()	check if a path is absolute
 	isdirectory()		check if a directory exists
 	getfsize()		get the size of a file
 	getcwd()		get the current working directory
@@ -854,6 +856,7 @@ System functions and manipulation of files:
 	readblob()		read a file into a Blob
 	readdir()		get a List of file names in a directory
 	writefile()		write a List of lines or Blob into a file
+	filecopy()		copy a file {from} to {to}
 
 Date and Time:				*date-functions* *time-functions*
 	getftime()		get last modification time of a file
@@ -903,9 +906,12 @@ Buffers, windows and the argument list:
 	swapname()		get the swap file path of a buffer
 
 Command line:					*command-line-functions*
+	getcmdcomplpat()	get completion pattern of the current command
+				line
 	getcmdcompltype()	get the type of the current command line
 				completion
-	getcmdline()		get the current command line
+	getcmdline()		get the current command line input
+	getcmdprompt()		get the current command line prompt
 	getcmdpos()		get position of the cursor in the command line
 	getcmdscreenpos()	get screen position of the cursor in the
 				command line
@@ -948,7 +954,7 @@ Syntax and highlighting:	  *syntax-functions* *highlighting-functions*
 	synIDattr()		get a specific attribute of a syntax ID
 	synIDtrans()		get translated syntax ID
 	synstack()		get list of syntax IDs at a specific position
-	synconcealed()		get info about concealing
+	synconcealed()		get info about (syntax) concealing
 	diff_hlID()		get highlight ID for diff mode at a position
 	matchadd()		define a pattern to highlight (a "match")
 	matchaddpos()		define a list of positions to highlight
@@ -1097,7 +1103,8 @@ Various:					*various-functions*
 	did_filetype()		check if a FileType autocommand was used
 	eventhandler()		check if invoked by an event handler
 	getpid()		get process ID of Vim
-	getscriptinfo()		get list of sourced vim scripts
+	getscriptinfo()		get list of sourced Vim scripts
+	getstacktrace()		get current stack trace of Vim scripts
 
 	libcall()		call a function in an external library
 	libcallnr()		idem, returning a number

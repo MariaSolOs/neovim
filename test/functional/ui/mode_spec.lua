@@ -1,8 +1,9 @@
-local t = require('test.functional.testutil')()
+local t = require('test.testutil')
+local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
 
-local clear, feed, insert = t.clear, t.feed, t.insert
-local command = t.command
+local clear, feed, insert = n.clear, n.feed, n.insert
+local command = n.command
 local retry = t.retry
 
 describe('ui mode_change event', function()
@@ -10,8 +11,7 @@ describe('ui mode_change event', function()
 
   before_each(function()
     clear()
-    screen = Screen.new(25, 4)
-    screen:attach({ rgb = true })
+    screen = Screen.new(25, 4, { rgb = true })
   end)
 
   it('works in normal mode', function()
@@ -89,6 +89,46 @@ describe('ui mode_change event', function()
       ^                         |
       {1:~                        }|*2
                                |
+    ]],
+      mode = 'normal',
+    }
+  end)
+
+  -- oldtest: Test_mouse_shape_indent_norm_with_gq()
+  it('is restored to Normal mode after "gq" indents using :normal #12309', function()
+    screen:try_resize(60, 6)
+    n.exec([[
+      func Indent()
+        exe "normal! \<Ignore>"
+        return 0
+      endfunc
+
+      setlocal indentexpr=Indent()
+      call setline(1, [repeat('a', 80), repeat('b', 80)])
+    ]])
+
+    feed('ggVG')
+    screen:expect {
+      grid = [[
+      {17:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}|
+      {17:aaaaaaaaaaaaaaaaaaaa}                                        |
+      ^b{17:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb}|
+      {17:bbbbbbbbbbbbbbbbbbbb}                                        |
+      {1:~                                                           }|
+      {5:-- VISUAL LINE --}                                           |
+    ]],
+      mode = 'visual',
+    }
+
+    feed('gq')
+    screen:expect {
+      grid = [[
+      aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|
+      aaaaaaaaaaaaaaaaaaaa                                        |
+      ^bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb|
+      bbbbbbbbbbbbbbbbbbbb                                        |
+      {1:~                                                           }|
+                                                                  |
     ]],
       mode = 'normal',
     }

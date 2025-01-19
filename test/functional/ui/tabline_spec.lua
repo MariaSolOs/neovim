@@ -1,9 +1,11 @@
-local t = require('test.functional.testutil')()
+local t = require('test.testutil')
+local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
-local clear, command, eq = t.clear, t.command, t.eq
-local insert = t.insert
-local api = t.api
-local assert_alive = t.assert_alive
+
+local clear, command, eq = n.clear, n.command, t.eq
+local insert = n.insert
+local api = n.api
+local assert_alive = n.assert_alive
 
 describe('ui/ext_tabline', function()
   local screen
@@ -11,8 +13,7 @@ describe('ui/ext_tabline', function()
 
   before_each(function()
     clear()
-    screen = Screen.new(25, 5)
-    screen:attach({ rgb = true, ext_tabline = true })
+    screen = Screen.new(25, 5, { rgb = true, ext_tabline = true })
     function screen:_handle_tabline_update(curtab, tabs, curbuf, buffers)
       event_curtab = curtab
       event_tabs = tabs
@@ -98,7 +99,6 @@ describe('tabline', function()
   before_each(function()
     clear()
     screen = Screen.new(42, 5)
-    screen:attach()
   end)
 
   it('redraws when tabline option is set', function()
@@ -116,6 +116,26 @@ describe('tabline', function()
     screen:expect {
       grid = [[
       {2:jkl                                       }|
+      ^                                          |
+      {1:~                                         }|*2
+                                                |
+    ]],
+    }
+  end)
+
+  it('combines highlight attributes', function()
+    screen:set_default_attr_ids({
+      [1] = { foreground = Screen.colors.Blue1, bold = true }, -- StatusLine
+      [2] = { bold = true, italic = true }, -- StatusLine
+      [3] = { bold = true, italic = true, foreground = Screen.colors.Red }, -- NonText combined with StatusLine
+    })
+    command('hi TabLineFill gui=bold,italic')
+    command('hi Identifier guifg=red')
+    command('set tabline=Test%#Identifier#here')
+    command('set showtabline=2')
+    screen:expect {
+      grid = [[
+      {2:Test}{3:here                                  }|
       ^                                          |
       {1:~                                         }|*2
                                                 |
@@ -193,5 +213,44 @@ describe('tabline', function()
     eq({ 2, 2 }, api.nvim_eval('[tabpagenr(), tabpagenr("$")]'))
     api.nvim_input_mouse('middle', 'press', '', 0, 0, 1)
     eq({ 1, 1 }, api.nvim_eval('[tabpagenr(), tabpagenr("$")]'))
+  end)
+
+  it('does not show floats with focusable=false', function()
+    screen:set_default_attr_ids({
+      [1] = { background = Screen.colors.Plum1 },
+      [2] = { underline = true, background = Screen.colors.LightGrey },
+      [3] = { bold = true },
+      [4] = { reverse = true },
+      [5] = { bold = true, foreground = Screen.colors.Blue1 },
+      [6] = { foreground = Screen.colors.Fuchsia, bold = true },
+      [7] = { foreground = Screen.colors.SeaGreen, bold = true },
+    })
+    command('tabnew')
+    api.nvim_open_win(0, false, {
+      focusable = false,
+      relative = 'editor',
+      height = 1,
+      width = 1,
+      row = 0,
+      col = 0,
+    })
+    screen:expect {
+      grid = [[
+      {1: }{2:[No Name] }{3: [No Name] }{4:                   }{2:X}|
+      ^                                          |
+      {5:~                                         }|*2
+                                                |
+    ]],
+    }
+    command('tabs')
+    screen:expect {
+      grid = [[
+      {6:Tab page 1}                                |
+      #   [No Name]                             |
+      {6:Tab page 2}                                |
+      >   [No Name]                             |
+      {7:Press ENTER or type command to continue}^   |
+    ]],
+    }
   end)
 end)

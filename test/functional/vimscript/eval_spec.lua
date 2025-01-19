@@ -9,37 +9,36 @@
 --    test/functional/vimscript/<funcname>_spec.lua
 --    test/functional/vimscript/functions_spec.lua
 
-local t = require('test.functional.testutil')()
+local t = require('test.testutil')
+local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
 
 local mkdir = t.mkdir
-local clear = t.clear
+local clear = n.clear
 local eq = t.eq
-local exec = t.exec
-local exc_exec = t.exc_exec
-local exec_lua = t.exec_lua
-local exec_capture = t.exec_capture
-local eval = t.eval
-local command = t.command
+local exec = n.exec
+local exc_exec = n.exc_exec
+local exec_lua = n.exec_lua
+local exec_capture = n.exec_capture
+local eval = n.eval
+local command = n.command
 local write_file = t.write_file
-local api = t.api
+local api = n.api
 local sleep = vim.uv.sleep
-local matches = t.matches
-local pcall_err = t.pcall_err
-local assert_alive = t.assert_alive
-local poke_eventloop = t.poke_eventloop
-local feed = t.feed
-local expect_exit = t.expect_exit
+local assert_alive = n.assert_alive
+local poke_eventloop = n.poke_eventloop
+local feed = n.feed
+local expect_exit = n.expect_exit
 
 describe('Up to MAX_FUNC_ARGS arguments are handled by', function()
   local max_func_args = 20 -- from eval.h
-  local range = t.fn.range
+  local range = n.fn.range
 
   before_each(clear)
 
   it('printf()', function()
-    local printf = t.fn.printf
-    local rep = t.fn['repeat']
+    local printf = n.fn.printf
+    local rep = n.fn['repeat']
     local expected = '2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,'
     eq(expected, printf(rep('%d,', max_func_args - 1), unpack(range(2, max_func_args))))
     local ret = exc_exec('call printf("", 2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21)')
@@ -47,7 +46,7 @@ describe('Up to MAX_FUNC_ARGS arguments are handled by', function()
   end)
 
   it('rpcnotify()', function()
-    local rpcnotify = t.fn.rpcnotify
+    local rpcnotify = n.fn.rpcnotify
     local ret = rpcnotify(0, 'foo', unpack(range(3, max_func_args)))
     eq(1, ret)
     ret = exc_exec('call rpcnotify(0, "foo", 3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21)')
@@ -69,7 +68,7 @@ describe('backtick expansion', function()
   end)
 
   teardown(function()
-    t.rmdir('test-backticks')
+    n.rmdir('test-backticks')
   end)
 
   it("with default 'shell'", function()
@@ -188,12 +187,6 @@ describe('uncaught exception', function()
 
   it('multiline exception remains multiline #25350', function()
     local screen = Screen.new(80, 11)
-    screen:set_default_attr_ids({
-      [1] = { bold = true, reverse = true }, -- MsgSeparator
-      [2] = { foreground = Screen.colors.White, background = Screen.colors.Red }, -- ErrorMsg
-      [3] = { bold = true, foreground = Screen.colors.SeaGreen }, -- MoreMsg
-    })
-    screen:attach()
     exec_lua([[
       function _G.Oops()
         error("oops")
@@ -202,17 +195,17 @@ describe('uncaught exception', function()
     feed(':try\rlua _G.Oops()\rendtry\r')
     screen:expect {
       grid = [[
-      {1:                                                                                }|
+      {3:                                                                                }|
       :try                                                                            |
       :  lua _G.Oops()                                                                |
       :  endtry                                                                       |
-      {2:Error detected while processing :}                                               |
-      {2:E5108: Error executing lua [string "<nvim>"]:2: oops}                            |
-      {2:stack traceback:}                                                                |
-      {2:        [C]: in function 'error'}                                                |
-      {2:        [string "<nvim>"]:2: in function 'Oops'}                                 |
-      {2:        [string ":lua"]:1: in main chunk}                                        |
-      {3:Press ENTER or type command to continue}^                                         |
+      {9:Error detected while processing :}                                               |
+      {9:E5108: Error executing lua [string "<nvim>"]:2: oops}                            |
+      {9:stack traceback:}                                                                |
+      {9:        [C]: in function 'error'}                                                |
+      {9:        [string "<nvim>"]:2: in function 'Oops'}                                 |
+      {9:        [string ":lua"]:1: in main chunk}                                        |
+      {6:Press ENTER or type command to continue}^                                         |
     ]],
     }
   end)
@@ -231,74 +224,6 @@ describe('listing functions using :function', function()
    endfunction]]):format(num),
       exec_capture(('function <lambda>%s'):format(num))
     )
-  end)
-
-  it('does not crash if another function is deleted while listing', function()
-    local screen = Screen.new(80, 24)
-    screen:attach()
-    matches(
-      'Vim%(function%):E454: Function list was modified$',
-      pcall_err(
-        exec_lua,
-        [=[
-      vim.cmd([[
-        func Func1()
-        endfunc
-        func Func2()
-        endfunc
-        func Func3()
-        endfunc
-      ]])
-
-      local ns = vim.api.nvim_create_namespace('test')
-
-      vim.ui_attach(ns, { ext_messages = true }, function(event, _, content)
-        if event == 'msg_show' and content[1][2] == 'function Func1()'  then
-          vim.cmd('delfunc Func3')
-        end
-      end)
-
-      vim.cmd('function')
-
-      vim.ui_detach(ns)
-    ]=]
-      )
-    )
-    assert_alive()
-  end)
-
-  it('does not crash if the same function is deleted while listing', function()
-    local screen = Screen.new(80, 24)
-    screen:attach()
-    matches(
-      'Vim%(function%):E454: Function list was modified$',
-      pcall_err(
-        exec_lua,
-        [=[
-      vim.cmd([[
-        func Func1()
-        endfunc
-        func Func2()
-        endfunc
-        func Func3()
-        endfunc
-      ]])
-
-      local ns = vim.api.nvim_create_namespace('test')
-
-      vim.ui_attach(ns, { ext_messages = true }, function(event, _, content)
-        if event == 'msg_show' and content[1][2] == 'function Func1()'  then
-          vim.cmd('delfunc Func2')
-        end
-      end)
-
-      vim.cmd('function')
-
-      vim.ui_detach(ns)
-    ]=]
-      )
-    )
-    assert_alive()
   end)
 end)
 

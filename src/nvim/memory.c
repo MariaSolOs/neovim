@@ -19,6 +19,7 @@
 #include "nvim/context.h"
 #include "nvim/decoration_provider.h"
 #include "nvim/drawline.h"
+#include "nvim/errors.h"
 #include "nvim/eval.h"
 #include "nvim/gettext_defs.h"
 #include "nvim/globals.h"
@@ -33,7 +34,6 @@
 #include "nvim/memory.h"
 #include "nvim/message.h"
 #include "nvim/option_vars.h"
-#include "nvim/os/input.h"
 #include "nvim/sign.h"
 #include "nvim/state_defs.h"
 #include "nvim/statusline.h"
@@ -198,11 +198,11 @@ void *xmallocz(size_t size)
 {
   size_t total_size = size + 1;
   if (total_size < size) {
-    preserve_exit(_("Vim: Data too large to fit into virtual memory space\n"));
+    preserve_exit(_("Nvim: Data too large to fit into virtual memory space\n"));
   }
 
   void *ret = xmalloc(total_size);
-  ((char *)ret)[size] = 0;
+  ((char *)ret)[size] = NUL;
 
   return ret;
 }
@@ -222,11 +222,25 @@ void *xmemdupz(const void *data, size_t len)
   return memcpy(xmallocz(len), data, len);
 }
 
+/// Copies `len` bytes of `src` to `dst` and zero terminates it.
+///
+/// @see {xstrlcpy}
+/// @param[out]  dst  Buffer to store the result.
+/// @param[in]  src  Buffer to be copied.
+/// @param[in]  len  Number of bytes to be copied.
+void *xmemcpyz(void *dst, const void *src, size_t len)
+  FUNC_ATTR_NONNULL_ALL FUNC_ATTR_NONNULL_RET
+{
+  memcpy(dst, src, len);
+  ((char *)dst)[len] = NUL;
+  return dst;
+}
+
 #ifndef HAVE_STRNLEN
 size_t xstrnlen(const char *s, size_t n)
   FUNC_ATTR_NONNULL_ALL FUNC_ATTR_PURE
 {
-  const char *end = memchr(s, '\0', n);
+  const char *end = memchr(s, NUL, n);
   if (end == NULL) {
     return n;
   }
@@ -273,7 +287,7 @@ void *xmemscan(const void *addr, char c, size_t size)
 void strchrsub(char *str, char c, char x)
   FUNC_ATTR_NONNULL_ALL
 {
-  assert(c != '\0');
+  assert(c != NUL);
   while ((str = strchr(str, c))) {
     *str++ = x;
   }
@@ -373,7 +387,7 @@ char *xstpcpy(char *restrict dst, const char *restrict src)
 char *xstpncpy(char *restrict dst, const char *restrict src, size_t maxlen)
   FUNC_ATTR_NONNULL_RET FUNC_ATTR_WARN_UNUSED_RESULT FUNC_ATTR_NONNULL_ALL
 {
-  const char *p = memchr(src, '\0', maxlen);
+  const char *p = memchr(src, NUL, maxlen);
   if (p) {
     size_t srclen = (size_t)(p - src);
     memcpy(dst, src, srclen);
@@ -405,7 +419,7 @@ size_t xstrlcpy(char *restrict dst, const char *restrict src, size_t dsize)
   if (dsize) {
     size_t len = MIN(slen, dsize - 1);
     memcpy(dst, src, len);
-    dst[len] = '\0';
+    dst[len] = NUL;
   }
 
   return slen;  // Does not include NUL.
@@ -435,7 +449,7 @@ size_t xstrlcat(char *const dst, const char *const src, const size_t dsize)
 
   if (slen > dsize - dlen - 1) {
     memmove(dst + dlen, src, dsize - dlen - 1);
-    dst[dsize - 1] = '\0';
+    dst[dsize - 1] = NUL;
   } else {
     memmove(dst + dlen, src, slen + 1);
   }
@@ -495,7 +509,7 @@ char *xstrndup(const char *str, size_t len)
   FUNC_ATTR_MALLOC FUNC_ATTR_WARN_UNUSED_RESULT FUNC_ATTR_NONNULL_RET
   FUNC_ATTR_NONNULL_ALL
 {
-  char *p = memchr(str, '\0', len);
+  char *p = memchr(str, NUL, len);
   return xmemdupz(str, p ? (size_t)(p - str) : len);
 }
 
@@ -868,7 +882,6 @@ void free_all_mem(void)
 
   decor_free_all_mem();
   drawline_free_all_mem();
-  input_free_all_mem();
 
   if (ui_client_channel_id) {
     ui_client_free_all_mem();

@@ -1,6 +1,6 @@
 name: Bug Report
-description: Report a problem in Neovim
-labels: [bug]
+description: Report a problem in Nvim
+type: 'bug'
 body:
 
   - type: markdown
@@ -43,7 +43,7 @@ body:
 
   - type: input
     attributes:
-      label: "Neovim version (nvim -v)"
+      label: "Nvim version (nvim -v)"
       placeholder: "0.6.0 commit db1b0ee3b30f"
     validations:
       required: true

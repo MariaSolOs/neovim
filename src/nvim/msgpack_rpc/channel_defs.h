@@ -1,6 +1,5 @@
 #pragma once
 
-#include <msgpack.h>
 #include <stdbool.h>
 #include <uv.h>
 
@@ -37,11 +36,10 @@ typedef struct {
 } RequestEvent;
 
 typedef struct {
-  Set(cstr_t) subscribed_events[1];
   bool closed;
   Unpacker *unpacker;
   uint32_t next_request_id;
   kvec_t(ChannelCallFrame *) call_stack;
-  Dictionary info;
+  Dict info;
   ClientType client_type;
 } RpcState;

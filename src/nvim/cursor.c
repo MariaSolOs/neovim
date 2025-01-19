@@ -11,6 +11,7 @@
 #include "nvim/drawscreen.h"
 #include "nvim/fold.h"
 #include "nvim/globals.h"
+#include "nvim/macros_defs.h"
 #include "nvim/mark.h"
 #include "nvim/mbyte.h"
 #include "nvim/mbyte_defs.h"
@@ -105,7 +106,7 @@ static int coladvance2(win_T *wp, pos_T *pos, bool addspaces, bool finetune, col
                  || (State & MODE_TERMINAL)
                  || restart_edit != NUL
                  || (VIsual_active && *p_sel != 'o')
-                 || ((get_ve_flags(wp) & VE_ONEMORE) && wcol < MAXCOL);
+                 || ((get_ve_flags(wp) & kOptVeFlagOnemore) && wcol < MAXCOL);
 
   char *line = ml_get_buf(wp->w_buffer, pos->lnum);
   int linelen = ml_get_buf_len(wp->w_buffer, pos->lnum);
@@ -216,12 +217,7 @@ static int coladvance2(win_T *wp, pos_T *pos, bool addspaces, bool finetune, col
     }
   }
 
-  if (idx < 0) {
-    pos->col = 0;
-  } else {
-    pos->col = idx;
-  }
-
+  pos->col = MAX(idx, 0);
   pos->coladd = 0;
 
   if (finetune) {
@@ -310,15 +306,9 @@ linenr_T get_cursor_rel_lnum(win_T *wp, linenr_T lnum)
 /// This allows for the col to be on the NUL byte.
 void check_pos(buf_T *buf, pos_T *pos)
 {
-  if (pos->lnum > buf->b_ml.ml_line_count) {
-    pos->lnum = buf->b_ml.ml_line_count;
-  }
-
+  pos->lnum = MIN(pos->lnum, buf->b_ml.ml_line_count);
   if (pos->col > 0) {
-    colnr_T len = ml_get_buf_len(buf, pos->lnum);
-    if (pos->col > len) {
-      pos->col = len;
-    }
+    pos->col = MIN(pos->col, ml_get_buf_len(buf, pos->lnum));
   }
 }
 
@@ -352,11 +342,13 @@ void check_cursor_col(win_T *win)
   } else if (win->w_cursor.col >= len) {
     // Allow cursor past end-of-line when:
     // - in Insert mode or restarting Insert mode
+    // - in Terminal mode
     // - in Visual mode and 'selection' isn't "old"
-    // - 'virtualedit' is set */
+    // - 'virtualedit' is set
     if ((State & MODE_INSERT) || restart_edit
+        || (State & MODE_TERMINAL)
         || (VIsual_active && *p_sel != 'o')
-        || (cur_ve_flags & VE_ONEMORE)
+        || (cur_ve_flags & kOptVeFlagOnemore)
         || virtual_active(win)) {
       win->w_cursor.col = len;
     } else {
@@ -373,7 +365,7 @@ void check_cursor_col(win_T *win)
   // line.
   if (oldcol == MAXCOL) {
     win->w_cursor.coladd = 0;
-  } else if (cur_ve_flags == VE_ALL) {
+  } else if (cur_ve_flags == kOptVeFlagAll) {
     if (oldcoladd > win->w_cursor.col) {
       win->w_cursor.coladd = oldcoladd - win->w_cursor.col;
 
@@ -385,9 +377,7 @@ void check_cursor_col(win_T *win)
         int cs, ce;
 
         getvcol(win, &win->w_cursor, &cs, NULL, &ce);
-        if (win->w_cursor.coladd > ce - cs) {
-          win->w_cursor.coladd = ce - cs;
-        }
+        win->w_cursor.coladd = MIN(win->w_cursor.coladd, ce - cs);
       }
     } else {
       // avoid weird number when there is a miscalculation or overflow

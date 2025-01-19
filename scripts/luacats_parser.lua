@@ -1,9 +1,6 @@
 local luacats_grammar = require('scripts.luacats_grammar')
 
---- @class nvim.luacats.parser.param
---- @field name string
---- @field type string
---- @field desc string
+--- @class nvim.luacats.parser.param : nvim.luacats.Param
 
 --- @class nvim.luacats.parser.return
 --- @field name string
@@ -41,20 +38,14 @@ local luacats_grammar = require('scripts.luacats_grammar')
 --- @field notes? nvim.luacats.parser.note[]
 --- @field see? nvim.luacats.parser.note[]
 
---- @class nvim.luacats.parser.field
---- @field name string
---- @field type string
---- @field desc string
---- @field access? 'private'|'package'|'protected'
+--- @class nvim.luacats.parser.field : nvim.luacats.Field
+--- @field classvar? string
+--- @field nodoc? true
 
---- @class nvim.luacats.parser.class
---- @field kind 'class'
---- @field parent? string
---- @field name string
---- @field desc string
+--- @class nvim.luacats.parser.class : nvim.luacats.Class
+--- @field desc? string
 --- @field nodoc? true
 --- @field inlinedoc? true
---- @field access? 'private'|'package'|'protected'
 --- @field fields nvim.luacats.parser.field[]
 --- @field notes? string[]
 
@@ -252,9 +243,12 @@ end
 --- @return nvim.luacats.parser.field
 local function fun2field(fun)
   local parts = { 'fun(' }
+
+  local params = {} ---@type string[]
   for _, p in ipairs(fun.params or {}) do
-    parts[#parts + 1] = string.format('%s: %s', p.name, p.type)
+    params[#params + 1] = string.format('%s: %s', p.name, p.type)
   end
+  parts[#parts + 1] = table.concat(params, ', ')
   parts[#parts + 1] = ')'
   if fun.returns then
     parts[#parts + 1] = ': '
@@ -270,6 +264,7 @@ local function fun2field(fun)
     type = table.concat(parts, ''),
     access = fun.access,
     desc = fun.desc,
+    nodoc = fun.nodoc,
   }
 end
 
@@ -327,7 +322,10 @@ local function process_lua_line(line, state, classes, classvars, has_indent)
         end
 
         -- Add method as the field to the class
-        table.insert(classes[class].fields, fun2field(cur_obj))
+        local cls = classes[class]
+        local field = fun2field(cur_obj)
+        field.classvar = cur_obj.classvar
+        table.insert(cls.fields, field)
         return
       end
 
@@ -458,7 +456,7 @@ local function dump_uncommitted(filename, uncommitted)
   local out_path = 'luacats-uncommited/' .. filename:gsub('/', '%%') .. '.txt'
   if #uncommitted > 0 then
     print(string.format('Could not commit %d objects in %s', #uncommitted, filename))
-    vim.fn.mkdir(assert(vim.fs.dirname(out_path)), 'p')
+    vim.fn.mkdir(vim.fs.dirname(out_path), 'p')
     local f = assert(io.open(out_path, 'w'))
     for i, x in ipairs(uncommitted) do
       f:write(i)

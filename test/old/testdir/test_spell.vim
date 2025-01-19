@@ -5,6 +5,7 @@ source check.vim
 CheckFeature spell
 
 source screendump.vim
+source view_util.vim
 
 func TearDown()
   set nospell
@@ -124,6 +125,7 @@ foobar/?
 
   set spelllang=
   call assert_fails("call spellbadword('maxch')", 'E756:')
+  call assert_fails("spelldump", 'E756:')
 
   call delete('Xwords.spl')
   call delete('Xwords')
@@ -300,6 +302,20 @@ func Test_compl_with_CTRL_X_CTRL_K_using_spell()
   set spell& spelllang& dictionary& ignorecase&
 endfunc
 
+func Test_compl_with_CTRL_X_s()
+  new
+  set spell spelllang=en_us showmode
+  inoremap <buffer><F2> <Cmd>let g:msg = Screenline(&lines)<CR>
+
+  call feedkeys("STheatre\<C-X>s\<F2>\<C-Y>\<Esc>", 'tx')
+  call assert_equal(['Theater'], getline(1, '$'))
+  call assert_match('(^S^N^P)', g:msg)
+
+  bwipe!
+  set spell& spelllang& showmode&
+  unlet g:msg
+endfunc
+
 func Test_spellrepall()
   new
   set spell
@@ -455,7 +471,9 @@ func Test_spellsuggest_option_number()
   \ .. "Change \"baord\" to:\n"
   \ .. " 1 \"board\"\n"
   \ .. " 2 \"bard\"\n"
-  \ .. "Type number and <Enter> or click with the mouse (q or empty cancels): ", a)
+  "\ Nvim: Prompt message is sent to cmdline prompt.
+  "\ .. "Type number and <Enter> or click with the mouse (q or empty cancels): ", a)
+  \ , a)
 
   set spell spellsuggest=0
   call assert_equal("\nSorry, no suggestions", execute('norm $z='))
@@ -493,7 +511,9 @@ func Test_spellsuggest_option_expr()
   \ .. " 1 \"BARD\"\n"
   \ .. " 2 \"BOARD\"\n"
   \ .. " 3 \"BROAD\"\n"
-  \ .. "Type number and <Enter> or click with the mouse (q or empty cancels): ", a)
+  "\ Nvim: Prompt message is sent to cmdline prompt.
+  "\ .. "Type number and <Enter> or click with the mouse (q or empty cancels): ", a)
+  \ , a)
 
   " With verbose, z= should show the score i.e. word length with
   " our SpellSuggest() function.
@@ -505,7 +525,9 @@ func Test_spellsuggest_option_expr()
   \ .. " 1 \"BARD\"                      (4 - 0)\n"
   \ .. " 2 \"BOARD\"                     (5 - 0)\n"
   \ .. " 3 \"BROAD\"                     (5 - 0)\n"
-  \ .. "Type number and <Enter> or click with the mouse (q or empty cancels): ", a)
+  "\ Nvim: Prompt message is sent to cmdline prompt.
+  "\ .. "Type number and <Enter> or click with the mouse (q or empty cancels): ", a)
+  \ , a)
 
   set spell& spellsuggest& verbose&
   bwipe!
@@ -796,8 +818,8 @@ func Test_zz_sal_and_addition()
   throw 'skipped: Nvim does not support enc=latin1'
   set enc=latin1
   set spellfile=
-  call writefile(g:test_data_dic1, "Xtest.dic")
-  call writefile(g:test_data_aff_sal, "Xtest.aff")
+  call writefile(g:test_data_dic1, "Xtest.dic", 'D')
+  call writefile(g:test_data_aff_sal, "Xtest.aff", 'D')
   mkspell! Xtest Xtest
   set spl=Xtest.latin1.spl spell
   call assert_equal('kbltykk', soundfold('goobledygoook'))
@@ -805,7 +827,7 @@ func Test_zz_sal_and_addition()
   call assert_equal('*fls kswts tl', soundfold('oeverloos gezwets edale'))
 
   "also use an addition file
-  call writefile(["/regions=usgbnz", "elequint/2", "elekwint/3"], "Xtest.latin1.add")
+  call writefile(["/regions=usgbnz", "elequint/2", "elekwint/3"], "Xtest.latin1.add", 'D')
   mkspell! Xtest.latin1.add.spl Xtest.latin1.add
 
   bwipe!
@@ -842,10 +864,9 @@ endfunc
 
 func Test_region_error()
   messages clear
-  call writefile(["/regions=usgbnz", "elequint/0"], "Xtest.latin1.add")
+  call writefile(["/regions=usgbnz", "elequint/0"], "Xtest.latin1.add", 'D')
   mkspell! Xtest.latin1.add.spl Xtest.latin1.add
   call assert_match('Invalid region nr in Xtest.latin1.add line 2: 0', execute('messages'))
-  call delete('Xtest.latin1.add')
   call delete('Xtest.latin1.add.spl')
 endfunc
 

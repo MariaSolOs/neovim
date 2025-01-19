@@ -894,6 +894,9 @@ Example: >
 
 All expressions within one level are parsed from left to right.
 
+Expression nesting is limited to 1000 levels deep (300 when build with MSVC)
+to avoid running out of stack and crashing. *E1169*
+
 
 ------------------------------------------------------------------------------
 expr1				*expr1* *ternary* *falsy-operator* *??* *E109*
@@ -2144,6 +2147,10 @@ text...
 :cons[t] {var-name} = {expr1}
 :cons[t] [{name1}, {name2}, ...] = {expr1}
 :cons[t] [{name}, ..., ; {lastname}] = {expr1}
+:cons[t] {var-name} =<< [trim] [eval] {marker}
+text...
+text...
+{marker}
 			Similar to |:let|, but additionally lock the variable
 			after setting the value.  This is the same as locking
 			the variable with |:lockvar| just after |:let|, thus: >
@@ -2162,9 +2169,10 @@ text...
 				let lconst[0] = 2  " Error!
 				let lconst[1][0] = 'b'  " OK
 <							*E995*
-			|:const| does not allow to for changing a variable. >
+			It is an error to specify an existing variable with
+			|:const|. >
 				:let x = 1
-				:const x = 2  " Error!
+				:const x = 1  " Error!
 <							*E996*
 			Note that environment variables, option values and
 			register values cannot be used here, since they cannot
@@ -2182,7 +2190,7 @@ text...
 				:lockvar v
 				:let v = 'asdf'	  " fails!
 				:unlet v	  " works
-<							*E741* *E940*
+<							*E741* *E940* *E1122*
 			If you try to change a locked variable you get an
 			error message: "E741: Value is locked: {name}".
 			If you try to lock or unlock a built-in variable you
@@ -2840,7 +2848,8 @@ in the variable |v:exception|: >
 	:    echo "Number thrown.  Value is" v:exception
 
 You may also be interested where an exception was thrown.  This is stored in
-|v:throwpoint|.  Note that "v:exception" and "v:throwpoint" are valid for the
+|v:throwpoint|.  And you can obtain the stack trace from |v:stacktrace|.
+Note that "v:exception", "v:stacktrace" and "v:throwpoint" are valid for the
 exception most recently caught as long it is not finished.
    Example: >
 

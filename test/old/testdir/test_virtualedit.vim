@@ -696,18 +696,40 @@ func Test_virtualedit_mouse()
   set virtualedit&
 endfunc
 
-" this was replacing the NUL at the end of the line 
+" this was replacing the NUL at the end of the line
 func Test_virtualedit_replace_after_tab()
   new
   s/\v/	0
   set ve=all
   let @" = ''
   sil! norm vPvr0
-  
+
   call assert_equal("\t0", getline(1))
   set ve&
   bwipe!
 endfunc
 
+" Test that setpos('.') and cursor() behave the same for v:maxcol
+func Test_virtualedit_set_cursor_pos_maxcol()
+  new
+  set virtualedit=all
+
+  call setline(1, 'foobar')
+  exe "normal! V\<Esc>"
+  call assert_equal([0, 1, 1, 0], getpos("'<"))
+  call assert_equal([0, 1, v:maxcol, 0], getpos("'>"))
+  let pos = getpos("'>")
+
+  call cursor(1, 1)
+  call setpos('.', pos)
+  call assert_equal([0, 1, 7, 0], getpos('.'))
+
+  call cursor(1, 1)
+  call cursor(pos[1:])
+  call assert_equal([0, 1, 7, 0], getpos('.'))
+
+  set virtualedit&
+  bwipe!
+endfunc
 
 " vim: shiftwidth=2 sts=2 expandtab

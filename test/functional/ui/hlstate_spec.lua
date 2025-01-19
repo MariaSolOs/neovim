@@ -1,11 +1,12 @@
-local t = require('test.functional.testutil')()
+local t = require('test.testutil')
+local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
+local tt = require('test.functional.testterm')
 
-local clear, insert = t.clear, t.insert
-local command = t.command
-local api = t.api
-local testprg = t.testprg
-local tt = require('test.functional.terminal.testutil')
+local clear, insert = n.clear, n.insert
+local command = n.command
+local api = n.api
+local testprg = n.testprg
 local skip = t.skip
 local is_os = t.is_os
 
@@ -16,12 +17,7 @@ describe('ext_hlstate detailed highlights', function()
     clear()
     command('syntax on')
     command('hi VertSplit gui=reverse')
-    screen = Screen.new(40, 8)
-    screen:attach({ ext_hlstate = true })
-  end)
-
-  after_each(function()
-    screen:detach()
+    screen = Screen.new(40, 8, { ext_hlstate = true })
   end)
 
   it('work with combined UI and syntax highlights', function()
@@ -32,42 +28,42 @@ describe('ext_hlstate detailed highlights', function()
     api.nvim_buf_add_highlight(0, -1, 'Statement', 1, 5, -1)
     command('/th co')
 
-    screen:expect(
-      [[
+    screen:expect {
+      grid = [[
       these are {1:some} lines                    |
       ^wi{2:th }{4:co}{3:lorful text}                      |
       {5:~                                       }|*5
-      {8:search hit BOTTOM, continuing at TOP}{7:    }|
+      {8:search hit BOTTOM, continuing at TOP}{6:    }|
     ]],
-      {
+      attr_ids = {
         [1] = {
-          { foreground = Screen.colors.Magenta },
-          { { hi_name = 'Constant', kind = 'syntax' } },
+          { foreground = Screen.colors.Magenta1 },
+          { { kind = 'syntax', hi_name = 'Constant' } },
         },
         [2] = {
-          { background = Screen.colors.Yellow },
-          { { hi_name = 'Search', ui_name = 'Search', kind = 'ui' } },
+          { background = Screen.colors.Yellow1 },
+          { { kind = 'ui', ui_name = 'Search', hi_name = 'Search' } },
         },
         [3] = {
-          { bold = true, foreground = Screen.colors.Brown },
-          { { hi_name = 'Statement', kind = 'syntax' } },
+          { foreground = Screen.colors.Brown, bold = true },
+          { { kind = 'syntax', hi_name = 'Statement' } },
         },
         [4] = {
-          { bold = true, background = Screen.colors.Yellow, foreground = Screen.colors.Brown },
+          { background = Screen.colors.Yellow1, bold = true, foreground = Screen.colors.Brown },
           { 3, 2 },
         },
         [5] = {
-          { bold = true, foreground = Screen.colors.Blue1 },
-          { { hi_name = 'NonText', ui_name = 'EndOfBuffer', kind = 'ui' } },
+          { foreground = Screen.colors.Blue, bold = true },
+          { { kind = 'ui', ui_name = 'EndOfBuffer', hi_name = 'NonText' } },
         },
-        [6] = {
-          { foreground = Screen.colors.Red },
-          { { hi_name = 'WarningMsg', ui_name = 'WarningMsg', kind = 'ui' } },
+        [6] = { {}, { { kind = 'ui', ui_name = 'MsgArea', hi_name = 'MsgArea' } } },
+        [7] = {
+          { foreground = Screen.colors.Red1 },
+          { { kind = 'syntax', hi_name = 'WarningMsg' } },
         },
-        [7] = { {}, { { hi_name = 'MsgArea', ui_name = 'MsgArea', kind = 'ui' } } },
-        [8] = { { foreground = Screen.colors.Red }, { 7, 6 } },
-      }
-    )
+        [8] = { { foreground = Screen.colors.Red1 }, { 6, 7 } },
+      },
+    }
   end)
 
   it('work with cleared UI highlights', function()
@@ -228,10 +224,10 @@ describe('ext_hlstate detailed highlights', function()
       [6] = { { foreground = tonumber('0x40ffff'), fg_indexed = true }, { 5, 1 } },
       [7] = { {}, { { hi_name = 'MsgArea', ui_name = 'MsgArea', kind = 'ui' } } },
     })
-    command(("enew | call termopen(['%s'])"):format(testprg('tty-test')))
+    command(("enew | call jobstart(['%s'],{'term':v:true})"):format(testprg('tty-test')))
     screen:expect([[
       ^tty ready                               |
-      {1: }                                       |
+                                              |
                                               |*5
       {7:                                        }|
     ]])
@@ -246,7 +242,7 @@ describe('ext_hlstate detailed highlights', function()
       screen:expect([[
         ^tty ready                               |
         x {5:y z}                                   |
-        {1: }                                       |
+                                                |
                                                 |*4
         {7:                                        }|
       ]])
@@ -254,7 +250,7 @@ describe('ext_hlstate detailed highlights', function()
       screen:expect([[
         ^tty ready                               |
         x {2:y }{3:z}                                   |
-        {1: }                                       |
+                                                |
                                                 |*4
         {7:                                        }|
       ]])
@@ -272,7 +268,7 @@ describe('ext_hlstate detailed highlights', function()
     else
       screen:expect([[
         ^tty ready                               |
-        x {4:y}{2: }{3:z}                                   |
+        x {2:y }{3:z}                                   |
                                                 |*5
         {7:                                        }|
       ]])
@@ -381,7 +377,7 @@ describe('ext_hlstate detailed highlights', function()
       },
     }
 
-    t.feed('3ggV2jd')
+    n.feed('3ggV2jd')
     --screen:redraw_debug()
     screen:expect {
       grid = [[
@@ -478,7 +474,7 @@ describe('ext_hlstate detailed highlights', function()
       },
     }
 
-    t.feed('3ggV2jd')
+    n.feed('3ggV2jd')
     --screen:redraw_debug()
     screen:expect {
       grid = [[
@@ -512,7 +508,7 @@ describe('ext_hlstate detailed highlights', function()
     end
     insert('last line')
 
-    t.feed('gg')
+    n.feed('gg')
     screen:expect {
       grid = [[
       ^first line                              |
@@ -555,7 +551,7 @@ describe('ext_hlstate detailed highlights', function()
       },
     }
 
-    t.feed(string.format('3ggV%ijd', num_lines - 2))
+    n.feed(string.format('3ggV%ijd', num_lines - 2))
     --screen:redraw_debug(nil, nil, 100000)
 
     local expected_ids = {}

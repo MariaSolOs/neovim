@@ -1,18 +1,19 @@
+local t = require('test.testutil')
+local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
-local t = require('test.functional.testutil')()
-local tt = require('test.functional.terminal.testutil')
+local tt = require('test.functional.testterm')
 
-local assert_alive = t.assert_alive
-local mkdir, write_file, rmdir = t.mkdir, t.write_file, t.rmdir
+local assert_alive = n.assert_alive
+local mkdir, write_file, rmdir = t.mkdir, t.write_file, n.rmdir
 local eq = t.eq
-local feed = t.feed
-local feed_command = t.feed_command
-local clear = t.clear
-local command = t.command
-local testprg = t.testprg
-local nvim_dir = t.nvim_dir
-local has_powershell = t.has_powershell
-local set_shell_powershell = t.set_shell_powershell
+local feed = n.feed
+local feed_command = n.feed_command
+local clear = n.clear
+local command = n.command
+local testprg = n.testprg
+local nvim_dir = n.nvim_dir
+local has_powershell = n.has_powershell
+local set_shell_powershell = n.set_shell_powershell
 local skip = t.skip
 local is_os = t.is_os
 
@@ -30,10 +31,10 @@ describe('shell command :!', function()
       '--cmd',
       'colorscheme vim',
       '--cmd',
-      t.nvim_set .. ' notermguicolors',
+      n.nvim_set .. ' notermguicolors',
     })
     screen:expect([[
-      {1: }                                                 |
+      ^                                                  |
       {4:~                                                 }|*4
                                                         |
       {3:-- TERMINAL --}                                    |
@@ -77,11 +78,11 @@ describe('shell command :!', function()
       29999: foo                                        |
       30000: foo                                        |
                                                         |
-      {10:Press ENTER or type command to continue}{1: }          |
+      {10:Press ENTER or type command to continue}^           |
       {3:-- TERMINAL --}                                    |
     ]],
       {
-        -- test/functional/testutil.lua defaults to background=light.
+        -- test/functional/testnvim.lua defaults to background=light.
         [1] = { reverse = true },
         [3] = { bold = true },
         [10] = { foreground = 2 },
@@ -108,7 +109,6 @@ describe('shell command :!', function()
   it('handles control codes', function()
     skip(is_os('win'), 'missing printf')
     local screen = Screen.new(50, 4)
-    screen:attach()
     -- Print TAB chars. #2958
     feed([[:!printf '1\t2\t3'<CR>]])
     screen:expect {
@@ -166,7 +166,6 @@ describe('shell command :!', function()
       write_file('bang_filter_spec/f2', 'f2')
       write_file('bang_filter_spec/f3', 'f3')
       screen = Screen.new(53, 10)
-      screen:attach()
     end)
 
     after_each(function()
@@ -240,7 +239,6 @@ describe('shell command :!', function()
     it('powershell supports literal strings', function()
       set_shell_powershell()
       local screen = Screen.new(45, 4)
-      screen:attach()
       feed_command([[!'Write-Output $a']])
       screen:expect([[
         :!'Write-Output $a'                          |

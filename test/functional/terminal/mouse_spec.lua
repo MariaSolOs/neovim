@@ -1,7 +1,9 @@
-local t = require('test.functional.testutil')()
-local tt = require('test.functional.terminal.testutil')
-local clear, eq, eval = t.clear, t.eq, t.eval
-local feed, api, command = t.feed, t.api, t.command
+local t = require('test.testutil')
+local n = require('test.functional.testnvim')()
+
+local tt = require('test.functional.testterm')
+local clear, eq, eval = n.clear, t.eq, n.eval
+local feed, api, command = n.feed, n.api, n.command
 local feed_data = tt.feed_data
 local is_os = t.is_os
 local skip = t.skip
@@ -12,10 +14,12 @@ describe(':terminal mouse', function()
   before_each(function()
     clear()
     api.nvim_set_option_value('statusline', '==========', {})
-    command('highlight StatusLine cterm=NONE')
-    command('highlight StatusLineNC cterm=NONE')
-    command('highlight VertSplit cterm=NONE')
-    screen = tt.screen_setup()
+    screen = tt.setup_screen()
+    command('highlight StatusLine NONE')
+    command('highlight StatusLineNC NONE')
+    command('highlight StatusLineTerm NONE')
+    command('highlight StatusLineTermNC NONE')
+    command('highlight VertSplit NONE')
     local lines = {}
     for i = 1, 30 do
       table.insert(lines, 'line' .. tostring(i))
@@ -28,7 +32,7 @@ describe(':terminal mouse', function()
       line28                                            |
       line29                                            |
       line30                                            |
-      {1: }                                                 |
+      ^                                                  |
       {3:-- TERMINAL --}                                    |
     ]])
   end)
@@ -103,7 +107,7 @@ describe(':terminal mouse', function()
           line29                                            |
           line30                                            |
           mouse enabled                                     |
-          {1: }                                                 |
+          ^                                                  |
           {3:-- TERMINAL --}                                    |
         ]])
       end)
@@ -117,7 +121,7 @@ describe(':terminal mouse', function()
           line29                                            |
           line30                                            |
           mouse enabled                                     |
-           "#{1: }                                              |
+           "#^                                               |
           {3:-- TERMINAL --}                                    |
         ]])
         feed('<LeftDrag><2,2>')
@@ -127,7 +131,7 @@ describe(':terminal mouse', function()
           line29                                            |
           line30                                            |
           mouse enabled                                     |
-             @##{1: }                                           |
+             @##^                                            |
           {3:-- TERMINAL --}                                    |
         ]])
         feed('<LeftDrag><3,2>')
@@ -137,7 +141,7 @@ describe(':terminal mouse', function()
           line29                                            |
           line30                                            |
           mouse enabled                                     |
-                @$#{1: }                                        |
+                @$#^                                         |
           {3:-- TERMINAL --}                                    |
         ]])
         feed('<LeftRelease><3,2>')
@@ -147,7 +151,7 @@ describe(':terminal mouse', function()
           line29                                            |
           line30                                            |
           mouse enabled                                     |
-                   #$#{1: }                                     |
+                   #$#^                                      |
           {3:-- TERMINAL --}                                    |
         ]])
       end)
@@ -161,7 +165,7 @@ describe(':terminal mouse', function()
           line29                                            |
           line30                                            |
           mouse enabled                                     |
-          `!!{1: }                                              |
+          `!!^                                               |
           {3:-- TERMINAL --}                                    |
         ]])
       end)
@@ -175,7 +179,7 @@ describe(':terminal mouse', function()
           line29                                            |
           line30                                            |
           mouse enabled                                     |
-           "#{1: }                                              |
+           "#^                                               |
           {3:-- TERMINAL --}                                    |
         ]])
         feed('<ScrollWheelUp><1,2>')
@@ -185,7 +189,7 @@ describe(':terminal mouse', function()
           line29                                            |
           line30                                            |
           mouse enabled                                     |
-             `"#{1: }                                           |
+             `"#^                                            |
           {3:-- TERMINAL --}                                    |
         ]])
         feed('<LeftDrag><2,2>')
@@ -195,7 +199,7 @@ describe(':terminal mouse', function()
           line29                                            |
           line30                                            |
           mouse enabled                                     |
-                @##{1: }                                        |
+                @##^                                         |
           {3:-- TERMINAL --}                                    |
         ]])
         feed('<ScrollWheelUp><2,2>')
@@ -205,7 +209,7 @@ describe(':terminal mouse', function()
           line29                                            |
           line30                                            |
           mouse enabled                                     |
-                   `##{1: }                                     |
+                   `##^                                      |
           {3:-- TERMINAL --}                                    |
         ]])
         feed('<LeftRelease><2,2>')
@@ -215,7 +219,7 @@ describe(':terminal mouse', function()
           line29                                            |
           line30                                            |
           mouse enabled                                     |
-                      ###{1: }                                  |
+                      ###^                                   |
           {3:-- TERMINAL --}                                    |
         ]])
       end)
@@ -233,7 +237,7 @@ describe(':terminal mouse', function()
           {7: 13 }line30                                        |
           {7: 14 }mouse enabled                                 |
           {7: 15 }rows: 6, cols: 46                             |
-          {7: 16 }{2: }                                             |
+          {7: 16 }                                              |
                                                             |
         ]])
         -- If click on the coordinate (0,1) of the region of the terminal
@@ -245,7 +249,7 @@ describe(':terminal mouse', function()
           {7: 13 }line30                                        |
           {7: 14 }mouse enabled                                 |
           {7: 15 }rows: 6, cols: 46                             |
-          {7: 16 } !"{1: }                                          |
+          {7: 16 } !"^                                           |
           {3:-- TERMINAL --}                                    |
         ]])
       end)
@@ -257,7 +261,7 @@ describe(':terminal mouse', function()
           line30                                            |
           mouse enabled                                     |
           rows: 5, cols: 50                                 |
-          {1: }                                                 |
+          ^                                                  |
           ==========                                        |
           {3:-- TERMINAL --}                                    |
         ]])
@@ -267,7 +271,7 @@ describe(':terminal mouse', function()
           line30                                            |
           mouse enabled                                     |
           rows: 5, cols: 50                                 |
-          {2:^ }                                                 |
+          ^                                                  |
           ==========                                        |
                                                             |
         ]])
@@ -276,7 +280,7 @@ describe(':terminal mouse', function()
           mouse enabled                                     |
           rows: 5, cols: 50                                 |
           rows: 4, cols: 50                                 |
-          {2:^ }                                                 |
+          ^                                                  |
           ==========                                        |
                                                             |*2
         ]])
@@ -289,7 +293,7 @@ describe(':terminal mouse', function()
           line30                  │{4:~                        }|
           mouse enabled           │{4:~                        }|
           rows: 5, cols: 24       │{4:~                        }|
-          {1: }                       │{4:~                        }|
+          ^                        │{4:~                        }|
           ==========               ==========               |
           {3:-- TERMINAL --}                                    |
         ]])
@@ -299,7 +303,7 @@ describe(':terminal mouse', function()
           line30                  │{4:~                        }|
           mouse enabled           │{4:~                        }|
           rows: 5, cols: 24       │{4:~                        }|
-          {2:^ }                       │{4:~                        }|
+          ^                        │{4:~                        }|
           ==========               ==========               |
                                                             |
         ]])
@@ -309,7 +313,7 @@ describe(':terminal mouse', function()
           mouse enabled          │{4:~                         }|
           rows: 5, cols: 24      │{4:~                         }|
           rows: 5, cols: 23      │{4:~                         }|
-          {2:^ }                      │{4:~                         }|
+          ^                       │{4:~                         }|
           ==========              ==========                |
                                                             |
         ]])
@@ -323,7 +327,7 @@ describe(':terminal mouse', function()
           line30                                            |
           mouse enabled                                     |
           rows: 5, cols: 50                                 |
-          {1: }                                                 |
+          ^                                                  |
           {3:-- TERMINAL --}                                    |
         ]])
         feed('<LeftMouse><0,0>')
@@ -333,7 +337,7 @@ describe(':terminal mouse', function()
           line30                                            |
           mouse enabled                                     |
           rows: 5, cols: 50                                 |
-          {2:^ }                                                 |
+          ^                                                  |
                                                             |
         ]])
         command('set showtabline=2 tabline=TABLINE | startinsert')
@@ -343,7 +347,7 @@ describe(':terminal mouse', function()
           mouse enabled                                     |
           rows: 5, cols: 50                                 |
           rows: 4, cols: 50                                 |
-          {1: }                                                 |
+          ^                                                  |
           {3:-- TERMINAL --}                                    |
         ]])
         feed('<LeftMouse><0,0>')
@@ -353,7 +357,7 @@ describe(':terminal mouse', function()
           mouse enabled                                     |
           rows: 5, cols: 50                                 |
           rows: 4, cols: 50                                 |
-          {2:^ }                                                 |
+          ^                                                  |
                                                             |
         ]])
         command('setlocal winbar= | startinsert')
@@ -363,7 +367,7 @@ describe(':terminal mouse', function()
           rows: 5, cols: 50                                 |
           rows: 4, cols: 50                                 |
           rows: 5, cols: 50                                 |
-          {1: }                                                 |
+          ^                                                  |
           {3:-- TERMINAL --}                                    |
         ]])
         feed('<LeftMouse><0,0>')
@@ -373,7 +377,7 @@ describe(':terminal mouse', function()
           rows: 5, cols: 50                                 |
           rows: 4, cols: 50                                 |
           rows: 5, cols: 50                                 |
-          {2:^ }                                                 |
+          ^                                                  |
                                                             |
         ]])
       end)
@@ -387,7 +391,7 @@ describe(':terminal mouse', function()
           line29                   │line29                  |
           line30                   │line30                  |
           rows: 5, cols: 25        │rows: 5, cols: 25       |
-          {2:^ }                        │{2: }                       |
+          ^                         │                        |
           ==========                ==========              |
           :vsp                                              |
         ]])
@@ -397,7 +401,7 @@ describe(':terminal mouse', function()
           {4:~                        }│line30                  |
           {4:~                        }│rows: 5, cols: 25       |
           {4:~                        }│rows: 5, cols: 24       |
-          {4:~                        }│{2: }                       |
+          {4:~                        }│                        |
           ==========                ==========              |
           :enew | set number                                |
         ]])
@@ -407,7 +411,7 @@ describe(':terminal mouse', function()
           {7: 28 }line                 │line30                  |
           {7: 29 }line                 │rows: 5, cols: 25       |
           {7: 30 }line                 │rows: 5, cols: 24       |
-          {7: 31 }^                     │{2: }                       |
+          {7: 31 }^                     │                        |
           ==========                ==========              |
                                                             |
         ]])
@@ -417,7 +421,7 @@ describe(':terminal mouse', function()
           {7: 28 }line                 │line30                  |
           {7: 29 }line                 │rows: 5, cols: 25       |
           {7: 30 }line                 │rows: 5, cols: 24       |
-          {7: 31 }                     │{1: }                       |
+          {7: 31 }                     │^                        |
           ==========                ==========              |
           {3:-- TERMINAL --}                                    |
         ]])
@@ -430,7 +434,7 @@ describe(':terminal mouse', function()
           {7: 28 }line                 │rows: 5, cols: 25       |
           {7: 29 }line                 │rows: 5, cols: 24       |
           {7: 30 }line                 │mouse enabled           |
-          {7: 31 }                     │{1: }                       |
+          {7: 31 }                     │^                        |
           ==========                ==========              |
           {3:-- TERMINAL --}                                    |
         ]])
@@ -443,7 +447,7 @@ describe(':terminal mouse', function()
           {7: 22 }line                 │rows: 5, cols: 25       |
           {7: 23 }line                 │rows: 5, cols: 24       |
           {7: 24 }line                 │mouse enabled           |
-          {7: 25 }line                 │{1: }                       |
+          {7: 25 }line                 │^                        |
           ==========                ==========              |
           {3:-- TERMINAL --}                                    |
         ]])
@@ -453,7 +457,7 @@ describe(':terminal mouse', function()
           {7: 27 }line                 │rows: 5, cols: 25       |
           {7: 28 }line                 │rows: 5, cols: 24       |
           {7: 29 }line                 │mouse enabled           |
-          {7: 30 }line                 │{1: }                       |
+          {7: 30 }line                 │^                        |
           ==========                ==========              |
           {3:-- TERMINAL --}                                    |
         ]])
@@ -464,7 +468,7 @@ describe(':terminal mouse', function()
           {7: 17 }line                 │rows: 5, cols: 25       |
           {7: 18 }line                 │rows: 5, cols: 24       |
           {7: 19 }line                 │mouse enabled           |
-          {7: 20 }line                 │{1: }                       |
+          {7: 20 }line                 │^                        |
           ==========                ==========              |
           {3:-- TERMINAL --}                                    |
         ]])
@@ -479,7 +483,7 @@ describe(':terminal mouse', function()
           {7:  2 }linelinelinelineline │rows: 5, cols: 25       |
           {7:  3 }linelinelinelineline │rows: 5, cols: 24       |
           {7:  4 }linelinelinelineline │mouse enabled           |
-          {7:  5 }linelinelinelineline │{1: }                       |
+          {7:  5 }linelinelinelineline │^                        |
           ==========                ==========              |
           {3:-- TERMINAL --}                                    |
         ]])
@@ -489,7 +493,7 @@ describe(':terminal mouse', function()
           {7:  2 }nelinelineline       │rows: 5, cols: 25       |
           {7:  3 }nelinelineline       │rows: 5, cols: 24       |
           {7:  4 }nelinelineline       │mouse enabled           |
-          {7:  5 }nelinelineline       │{1: }                       |
+          {7:  5 }nelinelineline       │^                        |
           ==========                ==========              |
           {3:-- TERMINAL --}                                    |
         ]])
@@ -500,7 +504,7 @@ describe(':terminal mouse', function()
           {7:  2 }nelinelinelineline   │rows: 5, cols: 25       |
           {7:  3 }nelinelinelineline   │rows: 5, cols: 24       |
           {7:  4 }nelinelinelineline   │mouse enabled           |
-          {7:  5 }nelinelinelineline   │{1: }                       |
+          {7:  5 }nelinelinelineline   │^                        |
           ==========                ==========              |
           {3:-- TERMINAL --}                                    |
         ]])
@@ -513,7 +517,7 @@ describe(':terminal mouse', function()
           {7: 28 }l^ine                 │rows: 5, cols: 25       |
           {7: 29 }line                 │rows: 5, cols: 24       |
           {7: 30 }line                 │mouse enabled           |
-          {7: 31 }                     │{2: }                       |
+          {7: 31 }                     │                        |
           ==========                ==========              |
                                                             |
         ]])
@@ -527,7 +531,7 @@ describe(':terminal mouse', function()
           {7: 28 }line                 │rows: 5, cols: 25       |
           {7: 29 }line                 │rows: 5, cols: 24       |
           {7: 30 }line                 │mouse enabled           |
-          {7: 31 }^                     │{2: }                       |
+          {7: 31 }^                     │                        |
           ==========                ==========              |
                                                             |
         ]])
@@ -537,7 +541,7 @@ describe(':terminal mouse', function()
           rows: 5, cols: 24        │rows: 5, cols: 24       |
           mouse enabled            │mouse enabled           |
           rows: 5, cols: 25        │rows: 5, cols: 25       |
-          {2:^ }                        │{2: }                       |
+          ^                         │                        |
           ==========                ==========              |
           :bn                                               |
         ]])
@@ -547,7 +551,7 @@ describe(':terminal mouse', function()
           {7: 28 }line                 │mouse enabled           |
           {7: 29 }line                 │rows: 5, cols: 25       |
           {7: 30 }line                 │rows: 5, cols: 24       |
-          {7: 31 }^                     │{2: }                       |
+          {7: 31 }^                     │                        |
           ==========                ==========              |
           :bn                                               |
         ]])

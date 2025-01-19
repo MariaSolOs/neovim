@@ -31,6 +31,10 @@ local function write_signature(output, ev, prefix, notype)
 end
 
 local function write_arglist(output, ev)
+  if #ev.parameters == 0 then
+    return
+  end
+  output:write('  MAXSIZE_TEMP_ARRAY(args, ' .. #ev.parameters .. ');\n')
   for j = 1, #ev.parameters do
     local param = ev.parameters[j]
     local kind = string.upper(param[1])
@@ -50,7 +54,7 @@ local function call_ui_event_method(output, ev)
       local kind = ev.parameters[j][1]
       if kind ~= 'Object' then
         if kind == 'HlAttrs' then
-          kind = 'Dictionary'
+          kind = 'Dict'
         end
         output:write('\n      || args.items[' .. (j - 1) .. '].type != kObjectType' .. kind .. '')
       end
@@ -70,7 +74,7 @@ local function call_ui_event_method(output, ev)
       output:write(
         'ui_client_dict2hlattrs(args.items['
           .. (j - 1)
-          .. '].data.dictionary, '
+          .. '].data.dict, '
           .. (hlattrs_args_count == 0 and 'true' or 'false')
           .. ');\n'
       )
@@ -94,7 +98,7 @@ local function call_ui_event_method(output, ev)
 end
 
 events = vim.tbl_filter(function(ev)
-  return ev[1] ~= 'empty'
+  return ev[1] ~= 'empty' and ev[1] ~= 'preproc'
 end, events)
 
 for i = 1, #events do
@@ -107,14 +111,14 @@ for i = 1, #events do
   end
   ev.since = tonumber(ev.since)
 
+  local args = #ev.parameters > 0 and 'args' or 'noargs'
   if not ev.remote_only then
     if not ev.remote_impl and not ev.noexport then
       remote_output:write('void remote_ui_' .. ev.name)
       write_signature(remote_output, ev, 'RemoteUI *ui')
       remote_output:write('\n{\n')
-      remote_output:write('  Array args = ui->call_buf;\n')
       write_arglist(remote_output, ev)
-      remote_output:write('  push_call(ui, "' .. ev.name .. '", args);\n')
+      remote_output:write('  push_call(ui, "' .. ev.name .. '", ' .. args .. ');\n')
       remote_output:write('}\n\n')
     end
   end
@@ -124,9 +128,16 @@ for i = 1, #events do
     write_signature(call_output, ev, '')
     call_output:write('\n{\n')
     if ev.remote_only then
-      call_output:write('  Array args = call_buf;\n')
+      -- Lua callbacks may emit other events or the same event again. Avoid the latter
+      -- by adding a recursion guard to each generated function that may call a Lua callback.
+      call_output:write('  static bool entered = false;\n')
+      call_output:write('  if (entered) {\n')
+      call_output:write('    return;\n')
+      call_output:write('  }\n')
+      call_output:write('  entered = true;\n')
       write_arglist(call_output, ev)
-      call_output:write('  ui_call_event("' .. ev.name .. '", args);\n')
+      call_output:write(('  ui_call_event("%s", %s, %s)'):format(ev.name, tostring(ev.fast), args))
+      call_output:write(';\n  entered = false;\n')
     elseif ev.compositor_impl then
       call_output:write('  ui_comp_' .. ev.name)
       write_signature(call_output, ev, '', true)
@@ -194,7 +205,8 @@ for _, ev in ipairs(events) do
     ev_exported[attr] = ev[attr]
   end
   for _, p in ipairs(ev_exported.parameters) do
-    if p[1] == 'HlAttrs' then
+    if p[1] == 'HlAttrs' or p[1] == 'Dict' then
+      -- TODO(justinmk): for back-compat, but do clients actually look at this?
       p[1] = 'Dictionary'
     end
   end

@@ -2,7 +2,7 @@ local api = vim.api
 local query = vim.treesitter.query
 local Range = require('vim.treesitter._range')
 
-local ns = api.nvim_create_namespace('treesitter/highlighter')
+local ns = api.nvim_create_namespace('nvim.treesitter.highlighter')
 
 ---@alias vim.treesitter.highlighter.Iter fun(end_line: integer|nil): integer, TSNode, vim.treesitter.query.TSMetadata, TSQueryMatch
 
@@ -47,7 +47,7 @@ function TSHighlighterQuery:get_hl_from_capture(capture)
   return self.hl_cache[capture]
 end
 
----@package
+---@nodoc
 function TSHighlighterQuery:query()
   return self._query
 end
@@ -69,13 +69,14 @@ end
 ---@field private _queries table<string,vim.treesitter.highlighter.Query>
 ---@field tree vim.treesitter.LanguageTree
 ---@field private redraw_count integer
+---@field parsing boolean true if we are parsing asynchronously
 local TSHighlighter = {
   active = {},
 }
 
 TSHighlighter.__index = TSHighlighter
 
----@package
+---@nodoc
 ---
 --- Creates a highlighter for `tree`.
 ---
@@ -93,9 +94,6 @@ function TSHighlighter.new(tree, opts)
   opts = opts or {} ---@type { queries: table<string,string> }
   self.tree = tree
   tree:register_cbs({
-    on_bytes = function(...)
-      self:on_bytes(...)
-    end,
     on_detach = function()
       self:on_detach()
     end,
@@ -139,15 +137,16 @@ function TSHighlighter.new(tree, opts)
   -- but use synload.vim rather than syntax.vim to not enable
   -- syntax FileType autocmds. Later on we should integrate with the
   -- `:syntax` and `set syntax=...` machinery properly.
+  -- Still need to ensure that syntaxset augroup exists, so that calling :destroy()
+  -- immediately afterwards will not error.
   if vim.g.syntax_on ~= 1 then
     vim.cmd.runtime({ 'syntax/synload.vim', bang = true })
+    vim.api.nvim_create_augroup('syntaxset', { clear = false })
   end
 
-  api.nvim_buf_call(self.bufnr, function()
+  vim._with({ buf = self.bufnr }, function()
     vim.opt_local.spelloptions:append('noplainbuffer')
   end)
-
-  self.tree:parse()
 
   return self
 end
@@ -212,13 +211,6 @@ function TSHighlighter:for_each_highlight_state(fn)
 end
 
 ---@package
----@param start_row integer
----@param new_end integer
-function TSHighlighter:on_bytes(_, _, start_row, _, _, _, _, _, new_end)
-  api.nvim__buf_redraw_range(self.bufnr, start_row, start_row + new_end + 1)
-end
-
----@package
 function TSHighlighter:on_detach()
   self:destroy()
 end
@@ -227,12 +219,12 @@ end
 ---@param changes Range6[]
 function TSHighlighter:on_changedtree(changes)
   for _, ch in ipairs(changes) do
-    api.nvim__buf_redraw_range(self.bufnr, ch[1], ch[4] + 1)
+    api.nvim__redraw({ buf = self.bufnr, range = { ch[1], ch[4] + 1 }, flush = false })
   end
 end
 
 --- Gets the query used for @param lang
----@package
+---@nodoc
 ---@param lang string Language used by the highlighter.
 ---@return vim.treesitter.highlighter.Query
 function TSHighlighter:get_query(lang)
@@ -306,6 +298,8 @@ local function on_line_impl(self, buf, line, is_spell_nav)
         state.highlighter_query:query():iter_captures(root_node, self.bufnr, line, root_end_row + 1)
     end
 
+    local captures = state.highlighter_query:query().captures
+
     while line >= state.next_row do
       local capture, node, metadata, match = state.iter(line)
 
@@ -318,14 +312,14 @@ local function on_line_impl(self, buf, line, is_spell_nav)
       if capture then
         local hl = state.highlighter_query:get_hl_from_capture(capture)
 
-        local capture_name = state.highlighter_query:query().captures[capture]
+        local capture_name = captures[capture]
 
         local spell, spell_pri_offset = get_spell(capture_name)
 
         -- The "priority" attribute can be set at the pattern level or on a particular capture
         local priority = (
           tonumber(metadata.priority or metadata[capture] and metadata[capture].priority)
-          or vim.highlight.priorities.treesitter
+          or vim.hl.priorities.treesitter
         ) + spell_pri_offset
 
         -- The "conceal" attribute can be set at the pattern level or on a particular capture
@@ -377,27 +371,35 @@ function TSHighlighter._on_spell_nav(_, _, buf, srow, _, erow, _)
     return
   end
 
+  -- Do not affect potentially populated highlight state. Here we just want a temporary
+  -- empty state so the C code can detect whether the region should be spell checked.
+  local highlight_states = self._highlight_states
   self:prepare_highlight_states(srow, erow)
 
   for row = srow, erow do
     on_line_impl(self, buf, row, true)
   end
+  self._highlight_states = highlight_states
 end
 
 ---@private
----@param _win integer
 ---@param buf integer
 ---@param topline integer
 ---@param botline integer
-function TSHighlighter._on_win(_, _win, buf, topline, botline)
+function TSHighlighter._on_win(_, _, buf, topline, botline)
   local self = TSHighlighter.active[buf]
-  if not self then
+  if not self or self.parsing then
     return false
   end
-  self.tree:parse({ topline, botline + 1 })
-  self:prepare_highlight_states(topline, botline + 1)
+  self.parsing = self.tree:parse({ topline, botline + 1 }, function(_, trees)
+    if trees and self.parsing then
+      self.parsing = false
+      api.nvim__redraw({ buf = buf, valid = false, flush = false })
+    end
+  end) == nil
   self.redraw_count = self.redraw_count + 1
-  return true
+  self:prepare_highlight_states(topline, botline)
+  return #self._highlight_states > 0
 end
 
 api.nvim_set_decoration_provider(ns, {

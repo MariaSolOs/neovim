@@ -2,7 +2,6 @@
 #include <lauxlib.h>
 #include <stdbool.h>
 #include <stdint.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -23,6 +22,7 @@
 #include "nvim/globals.h"
 #include "nvim/lua/executor.h"
 #include "nvim/memory.h"
+#include "nvim/memory_defs.h"
 #include "nvim/strings.h"
 #include "nvim/types_defs.h"
 #include "nvim/vim_defs.h"
@@ -67,7 +67,7 @@ static int64_t next_autocmd_id = 1;
 /// NOTE: When multiple patterns or events are provided, it will find all the autocommands that
 /// match any combination of them.
 ///
-/// @param opts Dictionary with at least one of the following:
+/// @param opts Dict with at least one of the following:
 ///             - group (string|integer): the autocommand group name or id to match against.
 ///             - event (string|array): event or events to match against |autocmd-events|.
 ///             - pattern (string|array): pattern or patterns to match against |autocmd-pattern|.
@@ -270,7 +270,7 @@ Array nvim_get_autocmds(Dict(get_autocmds) *opts, Arena *arena, Error *err)
         }
       }
 
-      Dictionary autocmd_info = arena_dict(arena, 11);
+      Dict autocmd_info = arena_dict(arena, 11);
 
       if (ap->group != AUGROUP_DEFAULT) {
         PUT_C(autocmd_info, "group", INTEGER_OBJ(ap->group));
@@ -334,7 +334,7 @@ Array nvim_get_autocmds(Dict(get_autocmds) *opts, Arena *arena, Error *err)
       // PUT_C(autocmd_info, "sid", INTEGER_OBJ(ac->script_ctx.sc_sid));
       // PUT_C(autocmd_info, "lnum", INTEGER_OBJ(ac->script_ctx.sc_lnum));
 
-      kvi_push(autocmd_list, DICTIONARY_OBJ(autocmd_info));
+      kvi_push(autocmd_list, DICT_OBJ(autocmd_info));
     }
   }
 
@@ -381,15 +381,15 @@ cleanup:
 ///             - desc (string) optional: description (for documentation and troubleshooting).
 ///             - callback (function|string) optional: Lua function (or Vimscript function name, if
 ///             string) called when the event(s) is triggered. Lua callback can return a truthy
-///             value (not `false` or `nil`) to delete the autocommand. Receives a table argument
-///             with these keys:
+///             value (not `false` or `nil`) to delete the autocommand. Receives one argument,
+///             a table with these keys: [event-args]()
 ///                 - id: (number) autocommand id
 ///                 - event: (string) name of the triggered event |autocmd-events|
 ///                 - group: (number|nil) autocommand group id, if any
-///                 - match: (string) expanded value of [<amatch>]
-///                 - buf: (number) expanded value of [<abuf>]
-///                 - file: (string) expanded value of [<afile>]
-///                 - data: (any) arbitrary data passed from [nvim_exec_autocmds()]
+///                 - file: (string) [<afile>] (not expanded to a full path)
+///                 - match: (string) [<amatch>] (expanded to a full path)
+///                 - buf: (number) [<abuf>]
+///                 - data: (any) arbitrary data passed from [nvim_exec_autocmds()] [event-data]()
 ///             - command (string) optional: Vim command to execute on event. Cannot be used with
 ///             {callback}
 ///             - once (boolean) optional: defaults to false. Run the autocommand
@@ -621,7 +621,7 @@ void nvim_clear_autocmds(Dict(clear_autocmds) *opts, Arena *arena, Error *err)
 /// ```
 ///
 /// @param name String: The name of the group
-/// @param opts Dictionary Parameters
+/// @param opts Dict Parameters
 ///                 - clear (bool) optional: defaults to true. Clear existing
 ///                 commands if the group already exists |autocmd-groups|.
 /// @return Integer id of the created group.
@@ -631,7 +631,7 @@ Integer nvim_create_augroup(uint64_t channel_id, String name, Dict(create_augrou
   FUNC_API_SINCE(9)
 {
   char *augroup_name = name.data;
-  bool clear_autocmds = api_object_to_bool(opts->clear, "clear", true, err);
+  bool clear_autocmds = GET_BOOL_OR_TRUE(opts, create_augroup, clear);
 
   int augroup = -1;
   WITH_SCRIPT_CONTEXT(channel_id, {
@@ -686,7 +686,7 @@ void nvim_del_augroup_by_name(String name, Error *err)
 /// Execute all autocommands for {event} that match the corresponding
 ///  {opts} |autocmd-execute|.
 /// @param event (String|Array) The event or events to execute
-/// @param opts Dictionary of autocommand options:
+/// @param opts Dict of autocommand options:
 ///             - group (string|integer) optional: the autocommand group name or
 ///             id to match against. |autocmd-groups|.
 ///             - pattern (string|array) optional: defaults to "*" |autocmd-pattern|. Cannot be used

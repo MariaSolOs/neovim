@@ -1,12 +1,15 @@
-local t = require('test.functional.testutil')()
-local clear = t.clear
-local eq = t.eq
-local insert = t.insert
-local exec_lua = t.exec_lua
-local command = t.command
-local feed = t.feed
-local poke_eventloop = t.poke_eventloop
+local t = require('test.testutil')
+local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
+
+local clear = n.clear
+local eq = t.eq
+local insert = n.insert
+local write_file = t.write_file
+local exec_lua = n.exec_lua
+local command = n.command
+local feed = n.feed
+local poke_eventloop = n.poke_eventloop
 
 before_each(clear)
 
@@ -46,13 +49,13 @@ void ui_refresh(void)
   end
 
   local function get_fold_levels()
-    return exec_lua([[
-    local res = {}
-    for i = 1, vim.api.nvim_buf_line_count(0) do
-      res[i] = vim.treesitter.foldexpr(i)
-    end
-    return res
-    ]])
+    return exec_lua(function()
+      local res = {}
+      for i = 1, vim.api.nvim_buf_line_count(0) do
+        res[i] = vim.treesitter.foldexpr(i)
+      end
+      return res
+    end)
   end
 
   it('can compute fold levels', function()
@@ -244,9 +247,13 @@ function f()
 end
 -- comment]])
 
-    exec_lua(
-      [[vim.treesitter.query.set('lua', 'folds', '[(function_declaration) (parameters) (arguments)] @fold')]]
-    )
+    exec_lua(function()
+      vim.treesitter.query.set(
+        'lua',
+        'folds',
+        '[(function_declaration) (parameters) (arguments)] @fold'
+      )
+    end)
     parse('lua')
 
     eq({
@@ -288,9 +295,13 @@ function f()
   )
 end]])
 
-    exec_lua(
-      [[vim.treesitter.query.set('lua', 'folds', '[(function_declaration) (function_definition) (parameters) (arguments)] @fold')]]
-    )
+    exec_lua(function()
+      vim.treesitter.query.set(
+        'lua',
+        'folds',
+        '[(function_declaration) (function_definition) (parameters) (arguments)] @fold'
+      )
+    end)
     parse('lua')
 
     -- If fold1.stop = fold2.start, then move fold1's stop up so that fold2.start gets proper level.
@@ -331,9 +342,13 @@ function f(a)
   end
 end]])
 
-    exec_lua(
-      [[vim.treesitter.query.set('lua', 'folds', '[(if_statement) (function_declaration) (parameters) (arguments) (table_constructor)] @fold')]]
-    )
+    exec_lua(function()
+      vim.treesitter.query.set(
+        'lua',
+        'folds',
+        '[(if_statement) (function_declaration) (parameters) (arguments) (table_constructor)] @fold'
+      )
+    end)
     parse('lua')
 
     eq({
@@ -404,9 +419,30 @@ t3]])
     }, get_fold_levels())
   end)
 
+  it('handles quantified patterns', function()
+    insert([[
+-- hello
+-- hello
+-- hello
+-- hello
+-- hello
+-- hello]])
+
+    exec_lua([[vim.treesitter.query.set('lua', 'folds', '(comment)+ @fold')]])
+    parse('lua')
+
+    eq({
+      [1] = '>1',
+      [2] = '1',
+      [3] = '1',
+      [4] = '1',
+      [5] = '1',
+      [6] = '1',
+    }, get_fold_levels())
+  end)
+
   it('updates folds in all windows', function()
     local screen = Screen.new(60, 48)
-    screen:attach()
     screen:set_default_attr_ids({
       [1] = { background = Screen.colors.Grey, foreground = Screen.colors.DarkBlue },
       [2] = { bold = true, foreground = Screen.colors.Blue1 },
@@ -567,7 +603,6 @@ t3]])
 
   it("doesn't open folds in diff mode", function()
     local screen = Screen.new(60, 36)
-    screen:attach()
 
     parse('c')
     command(
@@ -622,6 +657,66 @@ t3]])
     }
   end)
 
+  it('does not extend closed fold with `o`/`O`', function()
+    local screen = Screen.new(60, 24)
+
+    insert(test_text)
+    parse('c')
+    command([[set foldmethod=expr foldexpr=v:lua.vim.treesitter.foldexpr() foldcolumn=1]])
+
+    feed('5ggzco')
+    screen:expect({
+      grid = [[
+        {7:-}void ui_refresh(void)                                      |
+        {7:│}{                                                          |
+        {7:│}  int width = INT_MAX, height = INT_MAX;                   |
+        {7:│}  bool ext_widgets[kUIExtCount];                           |
+        {7:+}{13:+---  3 lines: for (UIExtension i = 0; (int)i < kUIExtCount}|
+        {7:│}^                                                           |
+        {7:│}                                                           |
+        {7:│}  bool inclusive = ui_override();                          |
+        {7:-}  for (size_t i = 0; i < ui_count; i++) {                  |
+        {7:2}    UI *ui = uis[i];                                       |
+        {7:2}    width = MIN(ui->width, width);                         |
+        {7:2}    height = MIN(ui->height, height);                      |
+        {7:2}    foo = BAR(ui->bazaar, bazaar);                         |
+        {7:-}    for (UIExtension j = 0; (int)j < kUIExtCount; j++) {   |
+        {7:3}      ext_widgets[j] &= (ui->ui_ext[j] || inclusive);      |
+        {7:3}    }                                                      |
+        {7:2}  }                                                        |
+        {7:│}}                                                          |
+        {1:~                                                           }|*5
+        {5:-- INSERT --}                                                |
+      ]],
+    })
+
+    feed('<Esc>O')
+    screen:expect({
+      grid = [[
+        {7:-}void ui_refresh(void)                                      |
+        {7:│}{                                                          |
+        {7:│}  int width = INT_MAX, height = INT_MAX;                   |
+        {7:│}  bool ext_widgets[kUIExtCount];                           |
+        {7:+}{13:+---  3 lines: for (UIExtension i = 0; (int)i < kUIExtCount}|
+        {7:│}^                                                           |
+        {7:│}                                                           |*2
+        {7:│}  bool inclusive = ui_override();                          |
+        {7:-}  for (size_t i = 0; i < ui_count; i++) {                  |
+        {7:2}    UI *ui = uis[i];                                       |
+        {7:2}    width = MIN(ui->width, width);                         |
+        {7:2}    height = MIN(ui->height, height);                      |
+        {7:2}    foo = BAR(ui->bazaar, bazaar);                         |
+        {7:-}    for (UIExtension j = 0; (int)j < kUIExtCount; j++) {   |
+        {7:3}      ext_widgets[j] &= (ui->ui_ext[j] || inclusive);      |
+        {7:3}    }                                                      |
+        {7:2}  }                                                        |
+        {7:│}}                                                          |
+        {1:~                                                           }|*4
+        {5:-- INSERT --}                                                |
+      ]],
+    })
+  end)
+
   it("doesn't open folds that are not touched", function()
     local screen = Screen.new(40, 8)
     screen:set_default_attr_ids({
@@ -630,7 +725,6 @@ t3]])
       [3] = { foreground = Screen.colors.Blue1, bold = true },
       [4] = { bold = true },
     })
-    screen:attach()
 
     insert([[
 # h1
@@ -650,7 +744,7 @@ t2]])
       grid = [[
       {1:-}# h1                                   |
       {1:│}t1                                     |
-      {1:│}^                                       |
+      {1:-}^                                       |
       {1:+}{2:+--  2 lines: # h2·····················}|
       {3:~                                       }|*3
       {4:-- INSERT --}                            |
@@ -673,5 +767,80 @@ t2]])
       1 line less; before #2  {MATCH:.*}|
     ]],
     }
+  end)
+
+  it("doesn't call get_parser too often when parser is not available", function()
+    -- spy on vim.treesitter.get_parser() to keep track of how many times it is called
+    exec_lua(function()
+      _G.count = 0
+      vim.treesitter.get_parser = (function(wrapped)
+        return function(...)
+          _G.count = _G.count + 1
+          return wrapped(...)
+        end
+      end)(vim.treesitter.get_parser)
+    end)
+
+    insert(test_text)
+    command [[
+      set filetype=some_filetype_without_treesitter_parser
+      set foldmethod=expr foldexpr=v:lua.vim.treesitter.foldexpr() foldcolumn=1 foldlevel=0
+    ]]
+
+    -- foldexpr will return '0' for all lines
+    local levels = get_fold_levels() ---@type integer[]
+    eq(19, #levels)
+    for lnum, level in ipairs(levels) do
+      eq('0', level, string.format("foldlevel[%d] == %s; expected '0'", lnum, level))
+    end
+
+    eq(
+      1,
+      exec_lua [[ return _G.count ]],
+      'count should not be as high as the # of lines; actually only once for the buffer.'
+    )
+  end)
+
+  it('can detect a new parser and refresh folds accordingly', function()
+    local name = t.tmpname()
+    write_file(name, test_text)
+    command('edit ' .. name)
+    command [[
+      set filetype=some_filetype_without_treesitter_parser
+      set foldmethod=expr foldexpr=v:lua.vim.treesitter.foldexpr() foldcolumn=1 foldlevel=0
+    ]]
+
+    -- foldexpr will return '0' for all lines
+    local levels = get_fold_levels() ---@type integer[]
+    eq(19, #levels)
+    for lnum, level in ipairs(levels) do
+      eq('0', level, string.format("foldlevel[%d] == %s; expected '0'", lnum, level))
+    end
+
+    -- reload buffer as c filetype to simulate new parser being found
+    feed('GA// vim: ft=c<Esc>')
+    command([[write | edit]])
+
+    eq({
+      [1] = '>1',
+      [2] = '1',
+      [3] = '1',
+      [4] = '1',
+      [5] = '>2',
+      [6] = '2',
+      [7] = '2',
+      [8] = '1',
+      [9] = '1',
+      [10] = '>2',
+      [11] = '2',
+      [12] = '2',
+      [13] = '2',
+      [14] = '2',
+      [15] = '>3',
+      [16] = '3',
+      [17] = '3',
+      [18] = '2',
+      [19] = '1',
+    }, get_fold_levels())
   end)
 end)

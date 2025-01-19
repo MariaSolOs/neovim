@@ -1,10 +1,12 @@
-local t = require('test.functional.testutil')()
-local command = t.command
+local t = require('test.testutil')
+local n = require('test.functional.testnvim')()
+
+local command = n.command
 local eq = t.eq
-local clear = t.clear
-local fn = t.fn
+local clear = n.clear
+local fn = n.fn
 local pcall_err = t.pcall_err
-local assert_alive = t.assert_alive
+local assert_alive = n.assert_alive
 
 describe('Ex cmds', function()
   before_each(function()
@@ -27,13 +29,13 @@ describe('Ex cmds', function()
       ':tabnext 9999999999999999999999999999999999999999',
       'Vim(tabnext):E475: Invalid argument: 9999999999999999999999999999999999999999'
     )
-    check_excmd_err(
-      ':N 9999999999999999999999999999999999999999',
-      'Vim(Next):E939: Positive count required'
+    eq(
+      'Vim(Next):E163: There is only one file to edit',
+      pcall_err(command, ':N 9999999999999999999999999999999999999999')
     )
     check_excmd_err(
       ':bdelete 9999999999999999999999999999999999999999',
-      'Vim(bdelete):E939: Positive count required'
+      'Vim(bdelete):E516: No buffers were deleted'
     )
     eq(
       'Vim(menu):E329: No menu "9999999999999999999999999999999999999999"',

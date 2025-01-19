@@ -1,11 +1,11 @@
 #pragma once
 
 #include <stdbool.h>
-#include <stddef.h>
+#include <stddef.h>  // IWYU pragma: keep
 #include <stdint.h>
-#include <string.h>
+#include <string.h>  // IWYU pragma: keep
 
-#include "nvim/api/private/defs.h"
+#include "nvim/api/private/defs.h"  // IWYU pragma: keep
 #include "nvim/msgpack_rpc/packer_defs.h"
 
 #define mpack_w(b, byte) *(*(b))++ = (char)(byte);
@@ -69,6 +69,11 @@ static inline void mpack_map(char **buf, uint32_t len)
     mpack_w(buf, 0xdf);
     mpack_w4(buf, len);
   }
+}
+
+static inline size_t mpack_remaining(PackerBuffer *packer)
+{
+  return (size_t)(packer->endptr - packer->ptr);
 }
 
 #ifdef INCLUDE_GENERATED_DECLARATIONS

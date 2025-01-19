@@ -1,27 +1,27 @@
+local t = require('test.testutil')
+local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
-local t = require('test.functional.testutil')()
+
 local uv = vim.uv
-local eq, eval, expect, exec = t.eq, t.eval, t.expect, t.exec
-local assert_alive = t.assert_alive
-local clear = t.clear
-local command = t.command
-local feed = t.feed
-local fn = t.fn
-local nvim_prog = t.nvim_prog
+local eq, eval, expect, exec = t.eq, n.eval, n.expect, n.exec
+local assert_alive = n.assert_alive
+local clear = n.clear
+local command = n.command
+local feed = n.feed
+local fn = n.fn
+local nvim_prog = n.nvim_prog
 local ok = t.ok
-local rmdir = t.rmdir
-local new_argv = t.new_argv
-local new_pipename = t.new_pipename
+local rmdir = n.rmdir
+local new_pipename = n.new_pipename
 local pesc = vim.pesc
-local os_kill = t.os_kill
-local set_session = t.set_session
-local spawn = t.spawn
-local async_meths = t.async_meths
-local expect_msg_seq = t.expect_msg_seq
+local os_kill = n.os_kill
+local set_session = n.set_session
+local async_meths = n.async_meths
+local expect_msg_seq = n.expect_msg_seq
 local pcall_err = t.pcall_err
 local mkdir = t.mkdir
-local poke_eventloop = t.poke_eventloop
-local api = t.api
+local poke_eventloop = n.poke_eventloop
+local api = n.api
 local retry = t.retry
 local write_file = t.write_file
 
@@ -54,7 +54,7 @@ describe("preserve and (R)ecover with custom 'directory'", function()
 
   local nvim0
   before_each(function()
-    nvim0 = spawn(new_argv())
+    nvim0 = n.new_session(false)
     set_session(nvim0)
     rmdir(swapdir)
     mkdir(swapdir)
@@ -74,7 +74,8 @@ describe("preserve and (R)ecover with custom 'directory'", function()
 
   local function test_recover(swappath1)
     -- Start another Nvim instance.
-    local nvim2 = spawn({ nvim_prog, '-u', 'NONE', '-i', 'NONE', '--embed' }, true)
+    local nvim2 =
+      n.new_session(false, { args = { '-u', 'NONE', '-i', 'NONE', '--embed' }, merge = false })
     set_session(nvim2)
 
     exec(init)
@@ -112,13 +113,13 @@ describe("preserve and (R)ecover with custom 'directory'", function()
   it('killing TUI process without :preserve #22096', function()
     t.skip(t.is_os('win'))
     local screen0 = Screen.new()
-    screen0:attach()
     local child_server = new_pipename()
-    fn.termopen({ nvim_prog, '-u', 'NONE', '-i', 'NONE', '--listen', child_server }, {
+    fn.jobstart({ nvim_prog, '-u', 'NONE', '-i', 'NONE', '--listen', child_server }, {
+      term = true,
       env = { VIMRUNTIME = os.getenv('VIMRUNTIME') },
     })
     screen0:expect({ any = pesc('[No Name]') }) -- Wait for the child process to start.
-    local child_session = t.connect(child_server)
+    local child_session = n.connect(child_server)
     set_session(child_session)
     local swappath1 = setup_swapname()
     set_session(nvim0)
@@ -139,7 +140,7 @@ describe('swapfile detection', function()
     set swapfile fileformat=unix nomodified undolevels=-1 nohidden
   ]]
   before_each(function()
-    nvim0 = spawn(new_argv())
+    nvim0 = n.new_session(false)
     set_session(nvim0)
     rmdir(swapdir)
     mkdir(swapdir)
@@ -166,13 +167,13 @@ describe('swapfile detection', function()
     command('preserve')
 
     -- Start another Nvim instance.
-    local nvim2 = spawn({ nvim_prog, '-u', 'NONE', '-i', 'NONE', '--embed' }, true, nil, true)
+    local nvim2 =
+      n.new_session(true, { args = { '-u', 'NONE', '-i', 'NONE', '--embed' }, merge = false })
     set_session(nvim2)
     local screen2 = Screen.new(256, 40)
-    screen2:attach()
     screen2._default_attr_ids = nil
     exec(init)
-    command('autocmd! nvim_swapfile') -- Delete the default handler (which skips the dialog).
+    command('autocmd! nvim.swapfile') -- Delete the default handler (which skips the dialog).
 
     -- With shortmess+=F
     command('set shortmess+=F')
@@ -219,6 +220,7 @@ describe('swapfile detection', function()
         .. [[%.swp"]],
     }
     feed('e') -- Chose "Edit" at the swap dialog.
+    screen2:expect({ any = pesc('E5555: API call: Vim(edit):E325: ATTENTION') })
     feed('<c-c>')
     screen2:expect(expected_no_dialog)
 
@@ -249,10 +251,9 @@ describe('swapfile detection', function()
     command('preserve') -- Make sure the swap file exists.
     local nvimpid = fn.getpid()
 
-    local nvim1 = spawn(new_argv(), true, nil, true)
+    local nvim1 = n.new_session(true)
     set_session(nvim1)
     local screen = Screen.new(75, 18)
-    screen:attach()
     exec(init)
     feed(':edit Xfile1\n')
 
@@ -272,11 +273,11 @@ describe('swapfile detection', function()
       [1] = { bold = true, foreground = Screen.colors.SeaGreen }, -- MoreMsg
     })
 
-    local nvim1 = spawn(new_argv(), true, nil, true)
+    local nvim1 = n.new_session(true)
     set_session(nvim1)
     screen:attach()
     exec(init)
-    command('autocmd! nvim_swapfile') -- Delete the default handler (which skips the dialog).
+    command('autocmd! nvim.swapfile') -- Delete the default handler (which skips the dialog).
     feed(':split Xfile1\n')
     -- The default SwapExists handler does _not_ skip this prompt.
     screen:expect({
@@ -291,11 +292,11 @@ describe('swapfile detection', function()
     ]])
     nvim1:close()
 
-    local nvim2 = spawn(new_argv(), true, nil, true)
+    local nvim2 = n.new_session(true)
     set_session(nvim2)
     screen:attach()
     exec(init)
-    command('autocmd! nvim_swapfile') -- Delete the default handler (which skips the dialog).
+    command('autocmd! nvim.swapfile') -- Delete the default handler (which skips the dialog).
     command('set more')
     command('au bufadd * let foo_w = wincol()')
     feed(':e Xfile1<CR>')
@@ -323,11 +324,10 @@ describe('swapfile detection', function()
       [1] = { bold = true, foreground = Screen.colors.SeaGreen }, -- MoreMsg
       [2] = { background = Screen.colors.Red, foreground = Screen.colors.White }, -- ErrorMsg
     })
-    screen:attach()
 
     exec(init)
     if not swapexists then
-      command('autocmd! nvim_swapfile') -- Delete the default handler (which skips the dialog).
+      command('autocmd! nvim.swapfile') -- Delete the default handler (which skips the dialog).
     end
     command('set nohidden')
 
@@ -448,9 +448,10 @@ describe('quitting swapfile dialog on startup stops TUI properly', function()
   end)
 
   it('(Q)uit at first file argument', function()
-    local chan = fn.termopen(
+    local chan = fn.jobstart(
       { nvim_prog, '-u', 'NONE', '-i', 'NONE', '--cmd', init_dir, '--cmd', init_set, testfile },
       {
+        term = true,
         env = { VIMRUNTIME = os.getenv('VIMRUNTIME') },
       }
     )
@@ -470,7 +471,7 @@ describe('quitting swapfile dialog on startup stops TUI properly', function()
   end)
 
   it('(A)bort at second file argument with -p', function()
-    local chan = fn.termopen({
+    local chan = fn.jobstart({
       nvim_prog,
       '-u',
       'NONE',
@@ -484,6 +485,7 @@ describe('quitting swapfile dialog on startup stops TUI properly', function()
       otherfile,
       testfile,
     }, {
+      term = true,
       env = { VIMRUNTIME = os.getenv('VIMRUNTIME') },
     })
     retry(nil, nil, function()
@@ -510,7 +512,7 @@ describe('quitting swapfile dialog on startup stops TUI properly', function()
       second	%s	/^  \zssecond$/
       third	%s	/^  \zsthird$/]]):format(testfile, testfile, testfile)
     )
-    local chan = fn.termopen({
+    local chan = fn.jobstart({
       nvim_prog,
       '-u',
       'NONE',
@@ -524,6 +526,7 @@ describe('quitting swapfile dialog on startup stops TUI properly', function()
       'set tags=' .. otherfile,
       '-tsecond',
     }, {
+      term = true,
       env = { VIMRUNTIME = os.getenv('VIMRUNTIME') },
     })
     retry(nil, nil, function()
@@ -533,10 +536,6 @@ describe('quitting swapfile dialog on startup stops TUI properly', function()
       )
     end)
     api.nvim_chan_send(chan, 'q')
-    retry(nil, nil, function()
-      eq('Press ENTER or type command to continue', eval("getline('$')->trim(' ', 2)"))
-    end)
-    api.nvim_chan_send(chan, '\r')
     retry(nil, nil, function()
       eq(
         { '', '[Process exited 1]', '' },

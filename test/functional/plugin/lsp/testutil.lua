@@ -1,10 +1,10 @@
-local t = require('test.functional.testutil')()
+local n = require('test.functional.testnvim')()
 
-local clear = t.clear
-local exec_lua = t.exec_lua
-local run = t.run
-local stop = t.stop
-local api = t.api
+local clear = n.clear
+local exec_lua = n.exec_lua
+local run = n.run
+local stop = n.stop
+local api = n.api
 local NIL = vim.NIL
 
 local M = {}
@@ -21,8 +21,35 @@ function M.clear_notrace()
   }
 end
 
-M.create_server_definition = [[
-  function _create_server(opts)
+M.create_tcp_echo_server = function()
+  --- Create a TCP server that echos the first message it receives.
+  --- @param host string
+  ---@return uv.uv_tcp_t
+  ---@return integer
+  ---@return fun():string|nil
+  function _G._create_tcp_server(host)
+    local uv = vim.uv
+    local server = assert(uv.new_tcp())
+    local init = nil
+    server:bind(host, 0)
+    server:listen(127, function(err)
+      assert(not err, err)
+      local socket = assert(uv.new_tcp())
+      server:accept(socket)
+      socket:read_start(require('vim.lsp.rpc').create_read_loop(function(body)
+        init = body
+        socket:close()
+      end))
+    end)
+    local port = server:getsockname().port
+    return server, port, function()
+      return init
+    end
+  end
+end
+
+M.create_server_definition = function()
+  function _G._create_server(opts)
     opts = opts or {}
     local server = {}
     server.messages = {}
@@ -39,11 +66,10 @@ M.create_server_definition = [[
         })
         local handler = handlers[method]
         if handler then
-          local response, err = handler(method, params)
-          callback(err, response)
+          handler(method, params, callback)
         elseif method == 'initialize' then
           callback(nil, {
-            capabilities = opts.capabilities or {}
+            capabilities = opts.capabilities or {},
           })
         elseif method == 'shutdown' then
           callback(nil, nil)
@@ -55,7 +81,7 @@ M.create_server_definition = [[
       function srv.notify(method, params)
         table.insert(server.messages, {
           method = method,
-          params = params
+          params = params,
         })
         if method == 'exit' then
           dispatchers.on_exit(0, 15)
@@ -75,63 +101,62 @@ M.create_server_definition = [[
 
     return server
   end
-]]
+end
 
 -- Fake LSP server.
 M.fake_lsp_code = 'test/functional/fixtures/fake-lsp-server.lua'
 M.fake_lsp_logfile = 'Xtest-fake-lsp.log'
 
 local function fake_lsp_server_setup(test_name, timeout_ms, options, settings)
-  exec_lua(
-    [=[
-    lsp = require('vim.lsp')
-    local test_name, fake_lsp_code, fake_lsp_logfile, timeout, options, settings = ...
-    TEST_RPC_CLIENT_ID = lsp.start_client {
+  exec_lua(function(fake_lsp_code, fake_lsp_logfile, timeout)
+    options = options or {}
+    settings = settings or {}
+    _G.lsp = require('vim.lsp')
+    _G.TEST_RPC_CLIENT_ID = _G.lsp.start_client {
       cmd_env = {
-        NVIM_LOG_FILE = fake_lsp_logfile;
-        NVIM_LUA_NOTRACK = "1";
-        NVIM_APPNAME = "nvim_lsp_test";
-      };
+        NVIM_LOG_FILE = fake_lsp_logfile,
+        NVIM_LUA_NOTRACK = '1',
+        NVIM_APPNAME = 'nvim_lsp_test',
+      },
       cmd = {
-        vim.v.progpath, '-l', fake_lsp_code, test_name, tostring(timeout),
-      };
+        vim.v.progpath,
+        '-l',
+        fake_lsp_code,
+        test_name,
+        tostring(timeout),
+      },
       handlers = setmetatable({}, {
-        __index = function(t, method)
+        __index = function(_t, _method)
           return function(...)
             return vim.rpcrequest(1, 'handler', ...)
           end
-        end;
-      });
-      workspace_folders = {{
+        end,
+      }),
+      workspace_folders = {
+        {
           uri = 'file://' .. vim.uv.cwd(),
           name = 'test_folder',
-      }};
-      before_init = function(params, config)
+        },
+      },
+      before_init = function(_params, _config)
         vim.schedule(function()
-          vim.rpcrequest(1, "setup")
+          vim.rpcrequest(1, 'setup')
         end)
       end,
       on_init = function(client, result)
-        TEST_RPC_CLIENT = client
-        vim.rpcrequest(1, "init", result)
-      end;
+        _G.TEST_RPC_CLIENT = client
+        vim.rpcrequest(1, 'init', result)
+      end,
       flags = {
-        allow_incremental_sync = options.allow_incremental_sync or false;
-        debounce_text_changes = options.debounce_text_changes or 0;
-      };
-      settings = settings;
+        allow_incremental_sync = options.allow_incremental_sync or false,
+        debounce_text_changes = options.debounce_text_changes or 0,
+      },
+      settings = settings,
       on_exit = function(...)
-        vim.rpcnotify(1, "exit", ...)
-      end;
+        vim.rpcnotify(1, 'exit', ...)
+      end,
     }
-  ]=],
-    test_name,
-    M.fake_lsp_code,
-    M.fake_lsp_logfile,
-    timeout_ms or 1e3,
-    options or {},
-    settings or {}
-  )
+  end, M.fake_lsp_code, M.fake_lsp_logfile, timeout_ms or 1e3)
 end
 
 --- @class test.lsp.Config
@@ -157,22 +182,18 @@ function M.test_rpc_server(config)
     )
   end
   local client = setmetatable({}, {
-    __index = function(_, name)
+    __index = function(t, name)
       -- Workaround for not being able to yield() inside __index for Lua 5.1 :(
       -- Otherwise I would just return the value here.
-      return function(...)
-        return exec_lua(
-          [=[
-        local name = ...
-        if type(TEST_RPC_CLIENT[name]) == 'function' then
-          return TEST_RPC_CLIENT[name](select(2, ...))
-        else
-          return TEST_RPC_CLIENT[name]
-        end
-        ]=],
-          name,
-          ...
-        )
+      return function(arg1, ...)
+        local ismethod = arg1 == t
+        return exec_lua(function(...)
+          local client = _G.TEST_RPC_CLIENT
+          if type(client[name]) == 'function' then
+            return client[name](ismethod and client or arg1, ...)
+          end
+          return client[name]
+        end, ...)
       end
     end,
   })

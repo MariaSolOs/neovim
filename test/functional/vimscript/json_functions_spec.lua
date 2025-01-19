@@ -1,14 +1,16 @@
-local t = require('test.functional.testutil')()
-local clear = t.clear
-local fn = t.fn
-local api = t.api
+local t = require('test.testutil')
+local n = require('test.functional.testnvim')()
+
+local clear = n.clear
+local fn = n.fn
+local api = n.api
 local eq = t.eq
-local eval = t.eval
-local command = t.command
-local exc_exec = t.exc_exec
+local eval = n.eval
+local command = n.command
+local exc_exec = n.exc_exec
 local pcall_err = t.pcall_err
 local NIL = vim.NIL
-local source = t.source
+local source = n.source
 
 describe('json_decode() function', function()
   local restart = function(...)
@@ -500,9 +502,9 @@ describe('json_decode() function', function()
   end
 
   it('parses strings with NUL properly', function()
-    sp_decode_eq({ _TYPE = 'string', _VAL = { '\n' } }, '"\\u0000"')
-    sp_decode_eq({ _TYPE = 'string', _VAL = { '\n', '\n' } }, '"\\u0000\\n\\u0000"')
-    sp_decode_eq({ _TYPE = 'string', _VAL = { '\n«\n' } }, '"\\u0000\\u00AB\\u0000"')
+    sp_decode_eq('\000', '"\\u0000"')
+    sp_decode_eq('\000\n\000', '"\\u0000\\n\\u0000"')
+    sp_decode_eq('\000«\000', '"\\u0000\\u00AB\\u0000"')
   end)
 
   it('parses dictionaries with duplicate keys to special maps', function()
@@ -578,14 +580,8 @@ describe('json_decode() function', function()
   end)
 
   it('parses dictionaries with keys with NUL bytes to special maps', function()
-    sp_decode_eq(
-      { _TYPE = 'map', _VAL = { { { _TYPE = 'string', _VAL = { 'a\n', 'b' } }, 4 } } },
-      '{"a\\u0000\\nb": 4}'
-    )
-    sp_decode_eq(
-      { _TYPE = 'map', _VAL = { { { _TYPE = 'string', _VAL = { 'a\n', 'b', '' } }, 4 } } },
-      '{"a\\u0000\\nb\\n": 4}'
-    )
+    sp_decode_eq({ _TYPE = 'map', _VAL = { { 'a\000\nb', 4 } } }, '{"a\\u0000\\nb": 4}')
+    sp_decode_eq({ _TYPE = 'map', _VAL = { { 'a\000\nb\n', 4 } } }, '{"a\\u0000\\nb\\n": 4}')
     sp_decode_eq({
       _TYPE = 'map',
       _VAL = {
@@ -593,10 +589,7 @@ describe('json_decode() function', function()
         { 'a', 1 },
         { 'c', 4 },
         { 'd', 2 },
-        {
-          { _TYPE = 'string', _VAL = { '\n' } },
-          4,
-        },
+        { '\000', 4 },
       },
     }, '{"b": 3, "a": 1, "c": 4, "d": 2, "\\u0000": 4}')
   end)
@@ -736,19 +729,8 @@ describe('json_encode() function', function()
     eq('{"\\u0000": 1}', eval('json_encode(todump)'))
   end)
 
-  it('can dump generic mapping with BIN special key and NUL', function()
-    command('let todump = {"_TYPE": v:msgpack_types.binary, "_VAL": ["\\n"]}')
-    command('let todump = {"_TYPE": v:msgpack_types.map, "_VAL": [[todump, 1]]}')
-    eq('{"\\u0000": 1}', eval('json_encode(todump)'))
-  end)
-
   it('can dump STR special mapping with NUL and NL', function()
     command('let todump = {"_TYPE": v:msgpack_types.string, "_VAL": ["\\n", ""]}')
-    eq('"\\u0000\\n"', eval('json_encode(todump)'))
-  end)
-
-  it('can dump BIN special mapping with NUL and NL', function()
-    command('let todump = {"_TYPE": v:msgpack_types.binary, "_VAL": ["\\n", ""]}')
     eq('"\\u0000\\n"', eval('json_encode(todump)'))
   end)
 
@@ -929,7 +911,7 @@ describe('json_encode() function', function()
     eq('[]', eval('json_encode(v:_null_list)'))
   end)
 
-  it('can dump NULL dictionary', function()
+  it('can dump NULL dict', function()
     eq('{}', eval('json_encode(v:_null_dict)'))
   end)
 

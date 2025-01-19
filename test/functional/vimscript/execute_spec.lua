@@ -1,14 +1,16 @@
-local t = require('test.functional.testutil')()
-local eq = t.eq
-local eval = t.eval
-local clear = t.clear
-local source = t.source
-local exc_exec = t.exc_exec
-local pcall_err = t.pcall_err
-local fn = t.fn
+local t = require('test.testutil')
+local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
-local command = t.command
-local feed = t.feed
+
+local eq = t.eq
+local eval = n.eval
+local clear = n.clear
+local source = n.source
+local exc_exec = n.exc_exec
+local pcall_err = t.pcall_err
+local fn = n.fn
+local command = n.command
+local feed = n.feed
 local is_os = t.is_os
 
 describe('execute()', function()
@@ -112,7 +114,6 @@ describe('execute()', function()
 
   it('does not corrupt the command display #5422', function()
     local screen = Screen.new(70, 7)
-    screen:attach()
     feed(':echo execute("hi ErrorMsg")<CR>')
     screen:expect(
       [[
@@ -134,7 +135,6 @@ describe('execute()', function()
 
   it('places cursor correctly #6035', function()
     local screen = Screen.new(40, 6)
-    screen:attach()
     source([=[
       " test 1: non-silenced output goes as usual
       function! Test1()
@@ -261,7 +261,6 @@ describe('execute()', function()
   describe('{silent} argument', function()
     it('captures & displays output for ""', function()
       local screen = Screen.new(40, 5)
-      screen:attach()
       command('let g:mes = execute("echon 42", "")')
       screen:expect([[
       ^                                        |
@@ -285,7 +284,6 @@ describe('execute()', function()
 
     it('captures but does not display output for "silent"', function()
       local screen = Screen.new(40, 5)
-      screen:attach()
       command('let g:mes = execute("echon 42")')
       screen:expect([[
       ^                                        |

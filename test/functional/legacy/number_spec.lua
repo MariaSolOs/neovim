@@ -1,9 +1,10 @@
-local t = require('test.functional.testutil')()
+local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
-local clear = t.clear
-local command = t.command
-local exec = t.exec
-local feed = t.feed
+
+local clear = n.clear
+local command = n.command
+local exec = n.exec
+local feed = n.feed
 
 describe("'number' and 'relativenumber'", function()
   before_each(clear)
@@ -16,7 +17,6 @@ describe("'number' and 'relativenumber'", function()
       [2] = { foreground = Screen.colors.Blue },
       [3] = { foreground = Screen.colors.Green },
     })
-    screen:attach()
     exec([[
       call setline(1, range(200))
       111
@@ -85,7 +85,6 @@ describe("'number' and 'relativenumber'", function()
       [3] = { background = Screen.colors.Green, foreground = Screen.colors.Black },
       [4] = { bold = true, foreground = Screen.colors.Blue },
     })
-    screen:attach()
     exec([[
       set display=lastline scrolloff=0
       call setline(1, range(200)->map('v:val->string()->repeat(40)'))
@@ -214,7 +213,6 @@ describe("'number' and 'relativenumber'", function()
   -- oldtest: Test_relativenumber_callback()
   it('relative line numbers are updated if cursor is moved from timer', function()
     local screen = Screen.new(50, 8)
-    screen:attach()
     exec([[
       call setline(1, ['aaaaa', 'bbbbb', 'ccccc', 'ddddd'])
       set relativenumber
@@ -252,7 +250,6 @@ describe("'number' and 'relativenumber'", function()
   -- oldtest: Test_number_insert_delete_lines()
   it('line numbers are updated when deleting/inserting lines', function()
     local screen = Screen.new(50, 8)
-    screen:attach()
     exec([[
       call setline(1, range(1, 7))
       set number

@@ -1,20 +1,21 @@
-local t = require('test.functional.testutil')()
+local t = require('test.testutil')
+local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
 
-local request = t.request
+local request = n.request
 local eq = t.eq
 local ok = t.ok
 local pcall_err = t.pcall_err
-local insert = t.insert
-local feed = t.feed
-local clear = t.clear
-local command = t.command
-local exec = t.exec
-local api = t.api
-local assert_alive = t.assert_alive
+local insert = n.insert
+local feed = n.feed
+local clear = n.clear
+local command = n.command
+local exec = n.exec
+local api = n.api
+local assert_alive = n.assert_alive
 
 local function expect(contents)
-  return eq(contents, t.curbuf_contents())
+  return eq(contents, n.curbuf_contents())
 end
 
 local function set_extmark(ns_id, id, line, col, opts)
@@ -248,7 +249,7 @@ describe('API/extmarks', function()
     set_extmark(ns, 2, 1, 0, { right_gravity = false })
     eq({ { 1, 0, 0 }, { 2, 1, 0 } }, get_extmarks(ns, { 0, 0 }, { -1, -1 }))
     feed('u')
-    eq({ { 1, 0, 0 }, { 2, 1, 0 } }, get_extmarks(ns, { 0, 0 }, { -1, -1 }))
+    eq({ { 1, 0, 0 }, { 2, 0, 0 } }, get_extmarks(ns, { 0, 0 }, { -1, -1 }))
     api.nvim_buf_clear_namespace(0, ns, 0, -1)
   end)
 
@@ -454,7 +455,6 @@ describe('API/extmarks', function()
 
   it('join works when no marks are present', function()
     screen = Screen.new(15, 10)
-    screen:attach()
     feed('a<cr>1<esc>')
     feed('kJ')
     -- This shouldn't seg fault
@@ -507,7 +507,6 @@ describe('API/extmarks', function()
   it('marks move with char inserts', function()
     -- insertchar in edit.c (the ins_str branch)
     screen = Screen.new(15, 10)
-    screen:attach()
     set_extmark(ns, marks[1], 0, 3)
     feed('0')
     insert('abc')
@@ -758,7 +757,7 @@ describe('API/extmarks', function()
         {
           Ïf (!nlua_is_deferred_safe(lstate)) {
         	// strictly not allowed
-            Яetörn luaL_error(lstate, e_luv_api_disabled, "rpcrequest");
+            Яetörn luaL_error(lstate, e_fast_api_disabled, "rpcrequest");
           }
           return nlua_rpc(lstate, true);
         }]])
@@ -1568,7 +1567,7 @@ describe('API/extmarks', function()
       sign_text = '>>',
       spell = true,
       virt_lines = {
-        { { 'lines', 'Macro' }, { '???' } },
+        { { 'lines', 'Macro' }, { '???' }, { ';;;', '' } },
         { { 'stack', { 'Type', 'Search' } }, { '!!!' } },
       },
       virt_lines_above = true,
@@ -1603,7 +1602,7 @@ describe('API/extmarks', function()
         sign_text = '>>',
         spell = true,
         virt_lines = {
-          { { 'lines', 'Macro' }, { '???' } },
+          { { 'lines', 'Macro' }, { '???' }, { ';;;', '' } },
           { { 'stack', { 'Type', 'Search' } }, { '!!!' } },
         },
         virt_lines_above = true,
@@ -1725,7 +1724,6 @@ describe('API/extmarks', function()
 
   it('invalidated marks are deleted', function()
     screen = Screen.new(40, 6)
-    screen:attach()
     feed('dd6iaaa bbb ccc<CR><ESC>gg')
     api.nvim_set_option_value('signcolumn', 'auto:2', {})
     set_extmark(ns, 1, 0, 0, { invalidate = true, sign_text = 'S1', end_row = 1 })
@@ -1733,7 +1731,7 @@ describe('API/extmarks', function()
     -- mark with invalidate is removed
     command('d2')
     screen:expect([[
-      S2^aaa bbb ccc                           |
+      {7:S2}^aaa bbb ccc                           |
       {7:  }aaa bbb ccc                           |*3
       {7:  }                                      |
                                               |
@@ -1741,9 +1739,9 @@ describe('API/extmarks', function()
     -- mark is restored with undo_restore == true
     command('silent undo')
     screen:expect([[
-      S1{7:  }^aaa bbb ccc                         |
-      S1S2aaa bbb ccc                         |
-      S2{7:  }aaa bbb ccc                         |
+      {7:S1  }^aaa bbb ccc                         |
+      {7:S2S1}aaa bbb ccc                         |
+      {7:S2  }aaa bbb ccc                         |
       {7:    }aaa bbb ccc                         |*2
                                               |
     ]])
@@ -1757,13 +1755,13 @@ describe('API/extmarks', function()
     command('1d 2')
     eq(0, #get_extmarks(-1, 0, -1, {}))
     -- mark is not removed when deleting bytes before the range
-    set_extmark(
-      ns,
-      3,
-      0,
-      4,
-      { invalidate = true, undo_restore = false, hl_group = 'Error', end_col = 7 }
-    )
+    set_extmark(ns, 3, 0, 4, {
+      invalidate = true,
+      undo_restore = true,
+      hl_group = 'Error',
+      end_col = 7,
+      right_gravity = false,
+    })
     feed('dw')
     eq(3, get_extmark_by_id(ns, 3, { details = true })[3].end_col)
     -- mark is not removed when deleting bytes at the start of the range
@@ -1777,15 +1775,18 @@ describe('API/extmarks', function()
     eq(1, get_extmark_by_id(ns, 3, { details = true })[3].end_col)
     -- mark is removed when all bytes in the range are deleted
     feed('hx')
-    eq({}, get_extmark_by_id(ns, 3, {}))
+    eq(true, get_extmark_by_id(ns, 3, { details = true })[3].invalid)
+    -- mark is restored with undo_restore == true if pos did not change
+    command('undo')
+    eq(nil, get_extmark_by_id(ns, 3, { details = true })[3].invalid)
     -- multiline mark is not removed when start of its range is deleted
-    set_extmark(
-      ns,
-      4,
-      1,
-      4,
-      { undo_restore = false, invalidate = true, hl_group = 'Error', end_col = 7, end_row = 3 }
-    )
+    set_extmark(ns, 4, 1, 4, {
+      undo_restore = false,
+      invalidate = true,
+      hl_group = 'Error',
+      end_col = 7,
+      end_row = 3,
+    })
     feed('ddDdd')
     eq({ 0, 0 }, get_extmark_by_id(ns, 4, {}))
     -- multiline mark is removed when entirety of its range is deleted
@@ -1793,16 +1794,30 @@ describe('API/extmarks', function()
     eq({}, get_extmark_by_id(ns, 4, {}))
   end)
 
+  it('no crash checking invalidated flag of sign pair end key #31856', function()
+    api.nvim_buf_set_lines(0, 0, 1, false, { '', '' })
+    api.nvim_set_option_value('signcolumn', 'auto:2', {})
+    set_extmark(ns, 1, 0, 0, { sign_text = 'S1', invalidate = true, end_row = 0 })
+    set_extmark(ns, 2, 1, 0, { sign_text = 'S2', end_row = 1 })
+    command('d')
+    api.nvim_buf_clear_namespace(0, ns, 0, -1)
+    n.assert_alive()
+  end)
+
   it('can set a URL', function()
-    set_extmark(ns, 1, 0, 0, { url = 'https://example.com', end_col = 3 })
+    local url1 = 'https://example.com'
+    local url2 = 'http://127.0.0.1'
+    set_extmark(ns, 1, 0, 0, { url = url1, end_col = 3 })
+    set_extmark(ns, 2, 0, 3, { url = url2, hl_group = 'Search', end_col = 5 })
     local extmarks = get_extmarks(ns, 0, -1, { details = true })
-    eq(1, #extmarks)
-    eq('https://example.com', extmarks[1][4].url)
+    eq(2, #extmarks)
+    eq(url1, extmarks[1][4].url)
+    eq(url2, extmarks[2][4].url)
+    eq('Search', extmarks[2][4].hl_group)
   end)
 
   it('respects priority', function()
     screen = Screen.new(15, 10)
-    screen:attach()
 
     set_extmark(ns, marks[1], 0, 0, {
       hl_group = 'Comment',
@@ -1895,6 +1910,24 @@ describe('Extmarks buffer api with many marks', function()
     end
     eq(ns_marks[ns1], get_marks(ns1))
     eq(ns_marks[ns2], get_marks(ns2))
+
+    api.nvim_buf_clear_namespace(0, ns1, 0, 10)
+    for id, mark in pairs(ns_marks[ns1]) do
+      if mark[1] < 10 then
+        ns_marks[ns1][id] = nil
+      end
+    end
+    eq(ns_marks[ns1], get_marks(ns1))
+    eq(ns_marks[ns2], get_marks(ns2))
+
+    api.nvim_buf_clear_namespace(0, ns1, 20, -1)
+    for id, mark in pairs(ns_marks[ns1]) do
+      if mark[1] >= 20 then
+        ns_marks[ns1][id] = nil
+      end
+    end
+    eq(ns_marks[ns1], get_marks(ns1))
+    eq(ns_marks[ns2], get_marks(ns2))
   end)
 
   it('can delete line', function()
@@ -1956,7 +1989,6 @@ describe('API/win_extmark', function()
 
   it('sends and only sends ui-watched marks to ui', function()
     screen = Screen.new(20, 4)
-    screen:attach()
     -- should send this
     set_extmark(ns, marks[1], 1, 0, { ui_watched = true })
     -- should not send this
@@ -1979,7 +2011,6 @@ describe('API/win_extmark', function()
 
   it('sends multiple ui-watched marks to ui', function()
     screen = Screen.new(20, 4)
-    screen:attach()
     feed('15A!<Esc>')
     -- should send all of these
     set_extmark(ns, marks[1], 1, 0, { ui_watched = true, virt_text_pos = 'overlay' })
@@ -2025,7 +2056,6 @@ describe('API/win_extmark', function()
 
   it('updates ui-watched marks', function()
     screen = Screen.new(20, 4)
-    screen:attach()
     -- should send this
     set_extmark(ns, marks[1], 1, 0, { ui_watched = true })
     -- should not send this
@@ -2069,8 +2099,7 @@ describe('API/win_extmark', function()
   end)
 
   it('sends ui-watched to splits', function()
-    screen = Screen.new(20, 8)
-    screen:attach({ ext_multigrid = true })
+    screen = Screen.new(20, 8, { ext_multigrid = true })
     -- should send this
     set_extmark(ns, marks[1], 1, 0, { ui_watched = true })
     -- should not send this

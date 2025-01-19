@@ -1,24 +1,23 @@
-local t = require('test.functional.testutil')()
+local t = require('test.testutil')
+local n = require('test.functional.testnvim')()
 
-local assert_alive = t.assert_alive
-local command = t.command
-local feed_command = t.feed_command
-local feed = t.feed
-local eval = t.eval
+local assert_alive = n.assert_alive
+local command = n.command
+local feed_command = n.feed_command
+local feed = n.feed
+local eval = n.eval
 local eq = t.eq
-local run = t.run
-local fn = t.fn
-local nvim_prog = t.nvim_prog
+local run = n.run
 local pcall_err = t.pcall_err
-local exec_capture = t.exec_capture
-local poke_eventloop = t.poke_eventloop
+local exec_capture = n.exec_capture
+local poke_eventloop = n.poke_eventloop
 
 describe('v:exiting', function()
   local cid
 
   before_each(function()
-    t.clear()
-    cid = t.api.nvim_get_chan_info(0).id
+    n.clear()
+    cid = n.api.nvim_get_chan_info(0).id
   end)
 
   it('defaults to v:null', function()
@@ -68,13 +67,13 @@ describe(':cquit', function()
       poke_eventloop()
       assert_alive()
     else
-      fn.system({ nvim_prog, '-u', 'NONE', '-i', 'NONE', '--headless', '--cmd', cmdline })
-      eq(exit_code, eval('v:shell_error'))
+      local p = n.spawn_wait('--cmd', cmdline)
+      eq(exit_code, p.status)
     end
   end
 
   before_each(function()
-    t.clear()
+    n.clear()
   end)
 
   it('exits with non-zero after :cquit', function()

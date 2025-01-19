@@ -15,7 +15,8 @@ Install from download
 Downloads are available on the [Releases](https://github.com/neovim/neovim/releases) page.
 
 * Latest [stable release](https://github.com/neovim/neovim/releases/latest)
-    * [macOS](https://github.com/neovim/neovim/releases/latest/download/nvim-macos.tar.gz)
+    * [macOS x86](https://github.com/neovim/neovim/releases/latest/download/nvim-macos-x86_64.tar.gz)
+    * [macOS arm](https://github.com/neovim/neovim/releases/latest/download/nvim-macos-arm64.tar.gz)
     * [Linux](https://github.com/neovim/neovim/releases/latest/download/nvim-linux64.tar.gz)
     * [Windows](https://github.com/neovim/neovim/releases/latest/download/nvim-win64.msi)
 * Latest [development prerelease](https://github.com/neovim/neovim/releases/nightly)
@@ -36,7 +37,7 @@ Windows 8+ is required. Windows 7 or older is not supported.
 
 ### [Chocolatey](https://chocolatey.org)
 
-- **Release (v0.7):** `choco install neovim` (use -y for automatically skipping confirmation messages)
+- **Latest Release:** `choco install neovim` (use -y for automatically skipping confirmation messages)
 - **Development (pre-release):** `choco install neovim --pre`
 
 ### [Scoop](https://scoop.sh/)
@@ -54,12 +55,12 @@ Several Neovim GUIs are available from scoop (extras): [scoop.sh/#/apps?q=neovim
 1. Choose a package (**nvim-winXX.zip**) from the [releases page](https://github.com/neovim/neovim/releases).
 2. Unzip the package. Any location is fine, administrator privileges are _not_ required.
     - `$VIMRUNTIME` will be set to that location automatically.
-3. Double-click `nvim-qt.exe`.
+3. Run `nvim.exe` from a terminal.
 
 **Optional** steps:
 
 - Add the `bin` folder (e.g. `C:\Program Files\nvim\bin`) to your PATH.
-    - This makes it easy to run `nvim` and `nvim-qt` from anywhere.
+    - This makes it easy to run `nvim` from anywhere.
 - If `:set spell` does not work, create the `C:/Users/foo/AppData/Local/nvim/site/spell` folder.
   You can then copy your spell files over (for English, located
   [here](https://github.com/vim/vim/blob/master/runtime/spell/en.utf-8.spl) and
@@ -111,7 +112,7 @@ sudo rm -rf /opt/nvim
 sudo tar -C /opt -xzf nvim-linux64.tar.gz
 ```
 
-After this step add this to `~/.bashrc`:
+Then add this to your shell config (`~/.bashrc`, `~/.zshrc`, ...):
 
     export PATH="$PATH:/opt/nvim-linux64/bin"
 
@@ -128,7 +129,7 @@ To expose nvim globally:
     mkdir -p /opt/nvim
     mv nvim.appimage /opt/nvim/nvim
 
-And the following line to `~/.bashrc`:
+And the following line to your shell config (`~/.bashrc`, `~/.zshrc`, ...):
 
     export PATH="$PATH:/opt/nvim/"
 
@@ -203,7 +204,7 @@ You can also get nightly builds of git master from the [Copr automated build sys
     dnf copr enable agriffis/neovim-nightly
     dnf install -y neovim python3-neovim
 
-See the [blog post](https://arongriffis.com/2019/03/02/neovim-nightly-builds) for information on how these are built.
+See the [blog post](https://arongriffis.com/2019-03-02-neovim-nightly-builds) for information on how these are built.
 
 ### Flatpak
 
@@ -301,7 +302,7 @@ Neovim nightly and stable are available on the [snap store](https://snapcraft.io
 **Stable Builds**
 
 ```sh
-sudo snap install --beta nvim --classic
+sudo snap install nvim --classic
 ```
 
 **Nightly Builds**

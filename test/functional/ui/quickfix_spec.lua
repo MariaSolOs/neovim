@@ -1,7 +1,8 @@
-local t = require('test.functional.testutil')()
+local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
-local clear, feed, api = t.clear, t.feed, t.api
-local insert, command = t.insert, t.command
+
+local clear, feed, api = n.clear, n.feed, n.api
+local insert, command = n.insert, n.command
 
 describe('quickfix selection highlight', function()
   local screen
@@ -10,7 +11,6 @@ describe('quickfix selection highlight', function()
     clear()
 
     screen = Screen.new(25, 10)
-    screen:attach()
     screen:set_default_attr_ids({
       [1] = { bold = true, foreground = Screen.colors.Blue },
       [2] = { reverse = true },

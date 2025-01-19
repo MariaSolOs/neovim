@@ -1,17 +1,18 @@
-local t = require('test.functional.testutil')()
+local t = require('test.testutil')
+local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
 
-local clear = t.clear
-local command = t.command
-local get_pathsep = t.get_pathsep
+local clear = n.clear
+local command = n.command
+local get_pathsep = n.get_pathsep
 local eq = t.eq
 local neq = t.neq
-local fn = t.fn
+local fn = n.fn
 local matches = t.matches
 local pesc = vim.pesc
-local rmdir = t.rmdir
+local rmdir = n.rmdir
 local sleep = vim.uv.sleep
-local api = t.api
+local api = n.api
 local skip = t.skip
 local is_os = t.is_os
 local mkdir = t.mkdir
@@ -169,7 +170,7 @@ describe(':mksession', function()
     skip(is_os('win'), 'causes rmdir() to fail')
 
     local cwd_dir = fn.fnamemodify('.', ':p:~'):gsub([[[\/]*$]], '')
-    cwd_dir = cwd_dir:gsub([[\]], '/') -- :mksession always uses unix slashes.
+    cwd_dir = t.fix_slashes(cwd_dir) -- :mksession always uses unix slashes.
     local session_path = cwd_dir .. '/' .. session_file
 
     command('cd ' .. tab_dir)
@@ -200,8 +201,7 @@ describe(':mksession', function()
     local cwd_dir = fn.fnamemodify('.', ':p:~'):gsub([[[\/]*$]], '')
     local session_path = cwd_dir .. '/' .. session_file
 
-    screen = Screen.new(50, 6)
-    screen:attach({ rgb = false })
+    screen = Screen.new(50, 6, { rgb = false })
     local expected_screen = [[
       ^/                                                 |
                                                         |
@@ -221,8 +221,7 @@ describe(':mksession', function()
 
     -- Create a new test instance of Nvim.
     clear()
-    screen = Screen.new(50, 6)
-    screen:attach({ rgb = false })
+    screen = Screen.new(50, 6, { rgb = false })
     command('silent source ' .. session_path)
 
     -- Verify that the terminal's working directory is "/".

@@ -1,6 +1,8 @@
-local t = require('test.functional.testutil')()
-local clear = t.clear
-local exec_lua = t.exec_lua
+local t = require('test.testutil')
+local n = require('test.functional.testnvim')()
+
+local clear = n.clear
+local exec_lua = n.exec_lua
 local eq = t.eq
 local pcall_err = t.pcall_err
 
@@ -30,6 +32,18 @@ describe('vim.json.decode()', function()
       baz = vim.NIL,
       foo = { a = 'b' },
     }, exec_lua([[return vim.json.decode(..., {})]], jsonstr))
+    eq(
+      {
+        arr = { 1, 2, vim.NIL },
+        bar = { 3, 7 },
+        baz = vim.NIL,
+        foo = { a = 'b' },
+      },
+      exec_lua(
+        [[return vim.json.decode(..., { luanil = { array = false, object = false } })]],
+        jsonstr
+      )
+    )
     eq({
       arr = { 1, 2, vim.NIL },
       bar = { 3, 7 },
@@ -136,6 +150,45 @@ end)
 describe('vim.json.encode()', function()
   before_each(function()
     clear()
+  end)
+
+  it('escape_slash', function()
+    -- With slash
+    eq('"Test\\/"', exec_lua([[return vim.json.encode('Test/', { escape_slash = true })]]))
+    eq(
+      'Test/',
+      exec_lua([[return vim.json.decode(vim.json.encode('Test/', { escape_slash = true }))]])
+    )
+
+    -- Without slash
+    eq('"Test/"', exec_lua([[return vim.json.encode('Test/')]]))
+    eq('"Test/"', exec_lua([[return vim.json.encode('Test/', {})]]))
+    eq('"Test/"', exec_lua([[return vim.json.encode('Test/', { _invalid = true })]]))
+    eq('"Test/"', exec_lua([[return vim.json.encode('Test/', { escape_slash = false })]]))
+    eq(
+      '"Test/"',
+      exec_lua([[return vim.json.encode('Test/', { _invalid = true, escape_slash = false })]])
+    )
+    eq(
+      'Test/',
+      exec_lua([[return vim.json.decode(vim.json.encode('Test/', { escape_slash = false }))]])
+    )
+
+    -- Checks for for global side-effects
+    eq(
+      '"Test/"',
+      exec_lua([[
+        vim.json.encode('Test/', { escape_slash = true })
+        return vim.json.encode('Test/')
+      ]])
+    )
+    eq(
+      '"Test\\/"',
+      exec_lua([[
+        vim.json.encode('Test/', { escape_slash = false })
+        return vim.json.encode('Test/', { escape_slash = true })
+      ]])
+    )
   end)
 
   it('dumps strings', function()

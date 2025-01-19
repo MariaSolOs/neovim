@@ -1,6 +1,5 @@
 #include <assert.h>
 #include <inttypes.h>
-#include <msgpack/pack.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -24,7 +23,6 @@
 #include "nvim/event/wstream.h"
 #include "nvim/globals.h"
 #include "nvim/grid.h"
-#include "nvim/grid_defs.h"
 #include "nvim/highlight.h"
 #include "nvim/macros_defs.h"
 #include "nvim/main.h"
@@ -35,6 +33,7 @@
 #include "nvim/msgpack_rpc/channel.h"
 #include "nvim/msgpack_rpc/channel_defs.h"
 #include "nvim/msgpack_rpc/packer.h"
+#include "nvim/msgpack_rpc/packer_defs.h"
 #include "nvim/option.h"
 #include "nvim/types_defs.h"
 #include "nvim/ui.h"
@@ -67,7 +66,6 @@ static void mpack_str_small(char **buf, const char *str, size_t len)
 static void remote_ui_destroy(RemoteUI *ui)
   FUNC_ATTR_NONNULL_ALL
 {
-  kv_destroy(ui->call_buf);
   xfree(ui->packer.startptr);
   XFREE_CLEAR(ui->term_name);
   xfree(ui);
@@ -95,15 +93,15 @@ void remote_ui_free_all_mem(void)
 }
 #endif
 
-/// Wait until ui has connected on stdio channel if only_stdio
-/// is true, otherwise any channel.
+/// Wait until UI has connected.
+///
+/// @param only_stdio UI is expected to connect on stdio.
 void remote_ui_wait_for_attach(bool only_stdio)
 {
   if (only_stdio) {
     Channel *channel = find_channel(CHAN_STDIO);
     if (!channel) {
-      // this function should only be called in --embed mode, stdio channel
-      // can be assumed.
+      // `only_stdio` implies --embed mode, thus stdio channel can be assumed.
       abort();
     }
 
@@ -130,8 +128,7 @@ void remote_ui_wait_for_attach(bool only_stdio)
 /// @param height  Requested screen rows
 /// @param options  |ui-option| map
 /// @param[out] err Error details, if any
-void nvim_ui_attach(uint64_t channel_id, Integer width, Integer height, Dictionary options,
-                    Error *err)
+void nvim_ui_attach(uint64_t channel_id, Integer width, Integer height, Dict options, Error *err)
   FUNC_API_SINCE(1) FUNC_API_REMOTE_ONLY
 {
   if (map_has(uint64_t, &connected_uis, channel_id)) {
@@ -190,8 +187,6 @@ void nvim_ui_attach(uint64_t channel_id, Integer width, Integer height, Dictiona
     .anydata = ui,
   };
   ui->wildmenu_active = false;
-  ui->call_buf = (Array)ARRAY_DICT_INIT;
-  kv_ensure_space(ui->call_buf, 16);
 
   pmap_put(uint64_t)(&connected_uis, channel_id, ui);
   ui_attach_impl(ui, channel_id);
@@ -583,7 +578,7 @@ static void ui_flush_callback(PackerBuffer *packer)
 
 void remote_ui_grid_clear(RemoteUI *ui, Integer grid)
 {
-  Array args = ui->call_buf;
+  MAXSIZE_TEMP_ARRAY(args, 1);
   if (ui->ui_ext[kUILinegrid]) {
     ADD_C(args, INTEGER_OBJ(grid));
   }
@@ -593,7 +588,7 @@ void remote_ui_grid_clear(RemoteUI *ui, Integer grid)
 
 void remote_ui_grid_resize(RemoteUI *ui, Integer grid, Integer width, Integer height)
 {
-  Array args = ui->call_buf;
+  MAXSIZE_TEMP_ARRAY(args, 3);
   if (ui->ui_ext[kUILinegrid]) {
     ADD_C(args, INTEGER_OBJ(grid));
   } else {
@@ -609,7 +604,7 @@ void remote_ui_grid_scroll(RemoteUI *ui, Integer grid, Integer top, Integer bot,
                            Integer right, Integer rows, Integer cols)
 {
   if (ui->ui_ext[kUILinegrid]) {
-    Array args = ui->call_buf;
+    MAXSIZE_TEMP_ARRAY(args, 7);
     ADD_C(args, INTEGER_OBJ(grid));
     ADD_C(args, INTEGER_OBJ(top));
     ADD_C(args, INTEGER_OBJ(bot));
@@ -619,20 +614,19 @@ void remote_ui_grid_scroll(RemoteUI *ui, Integer grid, Integer top, Integer bot,
     ADD_C(args, INTEGER_OBJ(cols));
     push_call(ui, "grid_scroll", args);
   } else {
-    Array args = ui->call_buf;
+    MAXSIZE_TEMP_ARRAY(args, 4);
     ADD_C(args, INTEGER_OBJ(top));
     ADD_C(args, INTEGER_OBJ(bot - 1));
     ADD_C(args, INTEGER_OBJ(left));
     ADD_C(args, INTEGER_OBJ(right - 1));
     push_call(ui, "set_scroll_region", args);
 
-    args = ui->call_buf;
+    kv_size(args) = 0;
     ADD_C(args, INTEGER_OBJ(rows));
     push_call(ui, "scroll", args);
 
-    // some clients have "clear" being affected by scroll region,
-    // so reset it.
-    args = ui->call_buf;
+    // some clients have "clear" being affected by scroll region, so reset it.
+    kv_size(args) = 0;
     ADD_C(args, INTEGER_OBJ(0));
     ADD_C(args, INTEGER_OBJ(ui->height - 1));
     ADD_C(args, INTEGER_OBJ(0));
@@ -647,7 +641,7 @@ void remote_ui_default_colors_set(RemoteUI *ui, Integer rgb_fg, Integer rgb_bg, 
   if (!ui->ui_ext[kUITermColors]) {
     HL_SET_DEFAULT_COLORS(rgb_fg, rgb_bg, rgb_sp);
   }
-  Array args = ui->call_buf;
+  MAXSIZE_TEMP_ARRAY(args, 5);
   ADD_C(args, INTEGER_OBJ(rgb_fg));
   ADD_C(args, INTEGER_OBJ(rgb_bg));
   ADD_C(args, INTEGER_OBJ(rgb_sp));
@@ -657,15 +651,15 @@ void remote_ui_default_colors_set(RemoteUI *ui, Integer rgb_fg, Integer rgb_bg, 
 
   // Deprecated
   if (!ui->ui_ext[kUILinegrid]) {
-    args = ui->call_buf;
+    kv_size(args) = 0;
     ADD_C(args, INTEGER_OBJ(ui->rgb ? rgb_fg : cterm_fg - 1));
     push_call(ui, "update_fg", args);
 
-    args = ui->call_buf;
+    kv_size(args) = 0;
     ADD_C(args, INTEGER_OBJ(ui->rgb ? rgb_bg : cterm_bg - 1));
     push_call(ui, "update_bg", args);
 
-    args = ui->call_buf;
+    kv_size(args) = 0;
     ADD_C(args, INTEGER_OBJ(ui->rgb ? rgb_sp : -1));
     push_call(ui, "update_sp", args);
   }
@@ -678,7 +672,7 @@ void remote_ui_hl_attr_define(RemoteUI *ui, Integer id, HlAttrs rgb_attrs, HlAtt
     return;
   }
 
-  Array args = ui->call_buf;
+  MAXSIZE_TEMP_ARRAY(args, 4);
   ADD_C(args, INTEGER_OBJ(id));
   MAXSIZE_TEMP_DICT(rgb, HLATTRS_DICT_SIZE);
   MAXSIZE_TEMP_DICT(cterm, HLATTRS_DICT_SIZE);
@@ -692,8 +686,8 @@ void remote_ui_hl_attr_define(RemoteUI *ui, Integer id, HlAttrs rgb_attrs, HlAtt
     PUT_C(rgb, "url", CSTR_AS_OBJ(url));
   }
 
-  ADD_C(args, DICTIONARY_OBJ(rgb));
-  ADD_C(args, DICTIONARY_OBJ(cterm));
+  ADD_C(args, DICT_OBJ(rgb));
+  ADD_C(args, DICT_OBJ(cterm));
 
   if (ui->ui_ext[kUIHlState]) {
     ADD_C(args, ARRAY_OBJ(info));
@@ -706,15 +700,15 @@ void remote_ui_hl_attr_define(RemoteUI *ui, Integer id, HlAttrs rgb_attrs, HlAtt
 
 void remote_ui_highlight_set(RemoteUI *ui, int id)
 {
-  Array args = ui->call_buf;
-
   if (ui->hl_id == id) {
     return;
   }
+
   ui->hl_id = id;
   MAXSIZE_TEMP_DICT(dict, HLATTRS_DICT_SIZE);
   hlattrs2dict(&dict, NULL, syn_attr2entry(id), ui->rgb, false);
-  ADD_C(args, DICTIONARY_OBJ(dict));
+  MAXSIZE_TEMP_ARRAY(args, 1);
+  ADD_C(args, DICT_OBJ(dict));
   push_call(ui, "highlight_set", args);
 }
 
@@ -722,7 +716,7 @@ void remote_ui_highlight_set(RemoteUI *ui, int id)
 void remote_ui_grid_cursor_goto(RemoteUI *ui, Integer grid, Integer row, Integer col)
 {
   if (ui->ui_ext[kUILinegrid]) {
-    Array args = ui->call_buf;
+    MAXSIZE_TEMP_ARRAY(args, 3);
     ADD_C(args, INTEGER_OBJ(grid));
     ADD_C(args, INTEGER_OBJ(row));
     ADD_C(args, INTEGER_OBJ(col));
@@ -742,7 +736,7 @@ void remote_ui_cursor_goto(RemoteUI *ui, Integer row, Integer col)
   }
   ui->client_row = row;
   ui->client_col = col;
-  Array args = ui->call_buf;
+  MAXSIZE_TEMP_ARRAY(args, 2);
   ADD_C(args, INTEGER_OBJ(row));
   ADD_C(args, INTEGER_OBJ(col));
   push_call(ui, "cursor_goto", args);
@@ -751,7 +745,7 @@ void remote_ui_cursor_goto(RemoteUI *ui, Integer row, Integer col)
 void remote_ui_put(RemoteUI *ui, const char *cell)
 {
   ui->client_col++;
-  Array args = ui->call_buf;
+  MAXSIZE_TEMP_ARRAY(args, 1);
   ADD_C(args, CSTR_AS_OBJ(cell));
   push_call(ui, "put", args);
 }
@@ -782,16 +776,26 @@ void remote_ui_raw_line(RemoteUI *ui, Integer grid, Integer row, Integer startco
     for (size_t i = 0; i < ncells; i++) {
       repeat++;
       if (i == ncells - 1 || attrs[i] != attrs[i + 1] || chunk[i] != chunk[i + 1]) {
-        if (UI_BUF_SIZE - BUF_POS(ui) < 2 * (1 + 2 + sizeof(schar_T) + 5 + 5) + 1
+        if (
+            // Close to overflowing the redraw buffer. Finish this event, flush,
+            // and start a new "grid_line" event at the current position.
+            // For simplicity leave place for the final "clear" element as well,
+            // hence the factor of 2 in the check.
+            UI_BUF_SIZE - BUF_POS(ui) < 2 * (1 + 2 + MAX_SCHAR_SIZE + 5 + 5) + 1
+            // Also if there is a lot of packed cells, pass them off to the UI to
+            // let it start processing them.
             || ui->ncells_pending >= 500) {
-          // close to overflowing the redraw buffer. finish this event,
-          // flush, and start a new "grid_line" event at the current position.
-          // For simplicity leave place for the final "clear" element
-          // as well, hence the factor of 2 in the check.
-          // Also if there is a lot of packed cells, pass them of to the UI to
-          // let it start processing them
+          // If the last chunk was all spaces, add an empty clearing chunk,
+          // so it's clear that the last chunk wasn't a clearing chunk.
+          if (was_space) {
+            nelem++;
+            ui->ncells_pending += 1;
+            mpack_array(buf, 3);
+            mpack_str_small(buf, S_LEN(" "));
+            mpack_uint(buf, (uint32_t)clearattr);
+            mpack_uint(buf, 0);
+          }
           mpack_w2(&lenpos, nelem);
-
           // We only ever set the wrap field on the final "grid_line" event for the line.
           mpack_bool(buf, false);
           ui_flush_buf(ui);
@@ -842,7 +846,7 @@ void remote_ui_raw_line(RemoteUI *ui, Integer grid, Integer row, Integer startco
       char sc_buf[MAX_SCHAR_SIZE];
       schar_get(sc_buf, chunk[i]);
       remote_ui_put(ui, sc_buf);
-      if (utf_ambiguous_width(utf_ptr2char(sc_buf))) {
+      if (utf_ambiguous_width(sc_buf)) {
         ui->client_col = -1;  // force cursor update
       }
     }
@@ -915,11 +919,11 @@ static Array translate_contents(RemoteUI *ui, Array contents, Arena *arena)
     Array new_item = arena_array(arena, 2);
     int attr = (int)item.items[0].data.integer;
     if (attr) {
-      Dictionary rgb_attrs = arena_dict(arena, HLATTRS_DICT_SIZE);
+      Dict rgb_attrs = arena_dict(arena, HLATTRS_DICT_SIZE);
       hlattrs2dict(&rgb_attrs, NULL, syn_attr2entry(attr), ui->rgb, false);
-      ADD_C(new_item, DICTIONARY_OBJ(rgb_attrs));
+      ADD_C(new_item, DICT_OBJ(rgb_attrs));
     } else {
-      ADD_C(new_item, DICTIONARY_OBJ((Dictionary)ARRAY_DICT_INIT));
+      ADD_C(new_item, DICT_OBJ((Dict)ARRAY_DICT_INIT));
     }
     ADD_C(new_item, item.items[1]);
     ADD_C(new_contents, ARRAY_OBJ(new_item));
@@ -950,12 +954,12 @@ void remote_ui_event(RemoteUI *ui, char *name, Array args)
       push_call(ui, name, new_args);
       goto free_ret;
     } else if (strequal(name, "cmdline_block_show")) {
-      Array new_args = ui->call_buf;
       Array block = args.items[0].data.array;
       Array new_block = arena_array(&arena, block.size);
       for (size_t i = 0; i < block.size; i++) {
         ADD_C(new_block, ARRAY_OBJ(translate_contents(ui, block.items[i].data.array, &arena)));
       }
+      MAXSIZE_TEMP_ARRAY(new_args, 1);
       ADD_C(new_args, ARRAY_OBJ(new_block));
       push_call(ui, name, new_args);
       goto free_ret;
@@ -972,18 +976,18 @@ void remote_ui_event(RemoteUI *ui, char *name, Array args)
       ui->wildmenu_active = (args.items[4].data.integer == -1)
                             || !ui->ui_ext[kUIPopupmenu];
       if (ui->wildmenu_active) {
-        Array new_args = ui->call_buf;
         Array items = args.items[0].data.array;
         Array new_items = arena_array(&arena, items.size);
         for (size_t i = 0; i < items.size; i++) {
           ADD_C(new_items, items.items[i].data.array.items[0]);
         }
+        MAXSIZE_TEMP_ARRAY(new_args, 1);
         ADD_C(new_args, ARRAY_OBJ(new_items));
         push_call(ui, "wildmenu_show", new_args);
         if (args.items[1].data.integer != -1) {
-          Array new_args2 = ui->call_buf;
-          ADD_C(new_args2, args.items[1]);
-          push_call(ui, "wildmenu_select", new_args2);
+          kv_size(new_args) = 0;
+          ADD_C(new_args, args.items[1]);
+          push_call(ui, "wildmenu_select", new_args);
         }
         goto free_ret;
       }

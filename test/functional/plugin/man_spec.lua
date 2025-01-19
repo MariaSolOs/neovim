@@ -1,12 +1,13 @@
-local t = require('test.functional.testutil')()
+local t = require('test.testutil')
+local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
-local command, feed = t.command, t.feed
-local clear = t.clear
-local exec_lua = t.exec_lua
-local fn = t.fn
-local nvim_prog = t.nvim_prog
+
+local command, feed = n.command, n.feed
+local clear = n.clear
+local exec_lua = n.exec_lua
+local fn = n.fn
+local nvim_prog = n.nvim_prog
 local matches = t.matches
-local write_file = t.write_file
 local tmpname = t.tmpname
 local eq = t.eq
 local pesc = vim.pesc
@@ -15,21 +16,19 @@ local is_ci = t.is_ci
 
 -- Collects all names passed to find_path() after attempting ":Man foo".
 local function get_search_history(name)
-  local args = vim.split(name, ' ')
-  local code = [[
-    local args = ...
-    local man = require('runtime.lua.man')
+  return exec_lua(function()
+    local args = vim.split(name, ' ')
+    local man = require('man')
     local res = {}
-    man.find_path = function(sect, name)
-      table.insert(res, {sect, name})
+    --- @diagnostic disable-next-line:duplicate-set-field
+    man._find_path = function(name0, sect)
+      table.insert(res, { sect, name0 })
       return nil
     end
-    local ok, rv = pcall(man.open_page, -1, {tab = 0}, args)
-    assert(not ok)
-    assert(rv and rv:match('no manual entry'))
+    local err = man.open_page(-1, { tab = 0 }, args)
+    assert(err and err:match('no manual entry'))
     return res
-  ]]
-  return exec_lua(code, args)
+  end)
 end
 
 clear()
@@ -60,7 +59,6 @@ describe(':Man', function()
         c = { foreground = Screen.colors.Blue }, -- control chars
         eob = { bold = true, foreground = Screen.colors.Blue }, -- empty line '~'s
       })
-      screen:attach()
     end)
 
     it('clears backspaces from text and adds highlights', function()
@@ -111,6 +109,29 @@ describe(':Man', function()
       ^this {b:is }{bi:a }{biu:test}                                      |
       {u:with} {u:escaped} {u:text}                                   |
       {eob:~                                                   }|*2
+                                                          |
+      ]])
+    end)
+
+    it('clears OSC 8 hyperlink markup from text', function()
+      feed(
+        [[
+        ithis <C-v><ESC>]8;;http://example.com<C-v><ESC>\Link Title<C-v><ESC>]8;;<C-v><ESC>\<ESC>]]
+      )
+
+      screen:expect {
+        grid = [=[
+        this {c:^[}]8;;http://example.com{c:^[}\Link Title{c:^[}]8;;{c:^[}^\ |
+        {eob:~                                                   }|*3
+                                                            |
+      ]=],
+      }
+
+      exec_lua [[require'man'.init_pager()]]
+
+      screen:expect([[
+      ^this Link Title                                     |
+      {eob:~                                                   }|*3
                                                           |
       ]])
     end)
@@ -190,6 +211,7 @@ describe(':Man', function()
       '--headless',
       '+autocmd VimLeave * echo "quit works!!"',
       '+Man!',
+      '+tag ls',
       '+call nvim_input("q")',
     }
     matches('quit works!!', fn.system(args, { 'manpage contents' }))
@@ -200,10 +222,9 @@ describe(':Man', function()
     local actual_file = tmpname()
     -- actual_file must be an absolute path to an existent file for us to test against it
     matches('^/.+', actual_file)
-    write_file(actual_file, '')
     local args = { nvim_prog, '--headless', '+:Man ' .. actual_file, '+q' }
     matches(
-      ('Error detected while processing command line:\r\n' .. 'man.lua: "no manual entry for %s"'):format(
+      ('Error detected while processing command line:\r\n' .. 'man.lua: no manual entry for %s'):format(
         pesc(actual_file)
       ),
       fn.system(args, { '' })
@@ -213,8 +234,8 @@ describe(':Man', function()
 
   it('tries variants with spaces, underscores #22503', function()
     eq({
-      { '', 'NAME WITH SPACES' },
-      { '', 'NAME_WITH_SPACES' },
+      { vim.NIL, 'NAME WITH SPACES' },
+      { vim.NIL, 'NAME_WITH_SPACES' },
     }, get_search_history('NAME WITH SPACES'))
     eq({
       { '3', 'some other man' },
@@ -233,12 +254,21 @@ describe(':Man', function()
       { 'n', 'some_other_man' },
     }, get_search_history('n some other man'))
     eq({
-      { '', '123some other man' },
-      { '', '123some_other_man' },
+      { vim.NIL, '123some other man' },
+      { vim.NIL, '123some_other_man' },
     }, get_search_history('123some other man'))
     eq({
       { '1', 'other_man' },
       { '1', 'other_man' },
     }, get_search_history('other_man(1)'))
+  end)
+
+  it('can complete', function()
+    eq(
+      true,
+      exec_lua(function()
+        return #require('man').man_complete('f', 'Man f') > 0
+      end)
+    )
   end)
 end)

@@ -1,13 +1,14 @@
+local t = require('test.testutil')
+local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
-local t = require('test.functional.testutil')()
 
-local clear = t.clear
-local exec = t.exec
-local exec_lua = t.exec_lua
+local clear = n.clear
+local exec = n.exec
+local exec_lua = n.exec_lua
 local eq = t.eq
-local fn = t.fn
-local api = t.api
-local insert = t.insert
+local fn = n.fn
+local api = n.api
+local insert = n.insert
 
 local function html_syntax_match()
   local styles =
@@ -32,6 +33,10 @@ local function html_syntax_match()
       attr.underline = nil
       attr.undercurl = true
     end
+    attr.sp = style:match('text%-decoration%-color: #(%x+)')
+    if attr.sp then
+      attr.sp = tonumber(attr.sp, 16)
+    end
     attr.bg = style:match('background%-color: #(%x+)')
     if attr.bg then
       attr.bg = tonumber(attr.bg, 16)
@@ -48,7 +53,7 @@ local function html_syntax_match()
   local whitelist = {
     'fg',
     'bg',
-    --'sp',
+    'sp',
     --'blend',
     'bold',
     --'standout',
@@ -131,43 +136,97 @@ local function run_tohtml_and_assert(screen, func)
   screen:expect({ grid = expected.grid, attr_ids = expected.attr_ids })
 end
 
+---@param guifont boolean
+local function test_generates_html(guifont, expect_font)
+  insert([[line]])
+  exec('set termguicolors')
+  local bg = fn.synIDattr(fn.hlID('Normal'), 'bg#', 'gui')
+  local fg = fn.synIDattr(fn.hlID('Normal'), 'fg#', 'gui')
+  local tmpfile = t.tmpname()
+
+  exec_lua(
+    [[
+    local guifont, outfile = ...
+    local html = (guifont
+      and require('tohtml').tohtml(0,{title="title"})
+      or require('tohtml').tohtml(0,{title="title",font={ "dumyfont","anotherfont" }}))
+    vim.fn.writefile(html, outfile)
+    vim.cmd.split(outfile)
+  ]],
+    guifont,
+    tmpfile
+  )
+
+  local out_file = api.nvim_buf_get_name(api.nvim_get_current_buf())
+  eq({
+    '<!DOCTYPE html>',
+    '<html>',
+    '<head>',
+    '<meta charset="UTF-8">',
+    '<title>title</title>',
+    ('<meta name="colorscheme" content="%s"></meta>'):format(api.nvim_get_var('colors_name')),
+    '<style>',
+    ('* {font-family: %s,monospace}'):format(expect_font),
+    ('body {background-color: %s; color: %s}'):format(bg, fg),
+    '</style>',
+    '</head>',
+    '<body style="display: flex">',
+    '<pre>',
+    'line',
+    '',
+    '</pre>',
+    '</body>',
+    '</html>',
+  }, fn.readfile(out_file))
+end
+
 describe(':TOhtml', function()
   --- @type test.functional.ui.screen
   local screen
   before_each(function()
     clear({ args = { '--clean' } })
-    screen = Screen.new(80, 80)
-    screen:attach({ term_name = 'xterm' })
+    screen = Screen.new(80, 80, { term_name = 'xterm' })
     exec('colorscheme default')
   end)
 
-  it('expected internal html generated', function()
-    insert([[line]])
+  it('generates html with given font', function()
+    test_generates_html(false, '"dumyfont","anotherfont"')
+  end)
+
+  it("generates html, respects 'guifont'", function()
+    exec_lua [[vim.o.guifont='Font,Escape\\,comma, Ignore space after comma']]
+    test_generates_html(true, '"Font","Escape,comma","Ignore space after comma"')
+  end)
+
+  it('generates html from range', function()
+    insert([[
+    line1
+    line2
+    line3
+    ]])
+    local ns = api.nvim_create_namespace ''
+    api.nvim_buf_set_extmark(0, ns, 0, 0, { end_col = 1, end_row = 1, hl_group = 'Visual' })
     exec('set termguicolors')
     local bg = fn.synIDattr(fn.hlID('Normal'), 'bg#', 'gui')
     local fg = fn.synIDattr(fn.hlID('Normal'), 'fg#', 'gui')
-    exec_lua [[
-    local outfile = vim.fn.tempname() .. '.html'
-    local html = require('tohtml').tohtml(0,{title="title",font="dumyfont"})
-    vim.fn.writefile(html, outfile)
-    vim.cmd.split(outfile)
-    ]]
+    n.command('2,2TOhtml')
     local out_file = api.nvim_buf_get_name(api.nvim_get_current_buf())
     eq({
       '<!DOCTYPE html>',
       '<html>',
       '<head>',
       '<meta charset="UTF-8">',
-      '<title>title</title>',
+      '<title></title>',
       ('<meta name="colorscheme" content="%s"></meta>'):format(api.nvim_get_var('colors_name')),
       '<style>',
-      '* {font-family: dumyfont,monospace}',
+      '* {font-family: monospace}',
       ('body {background-color: %s; color: %s}'):format(bg, fg),
+      '.Visual {background-color: #9b9ea4}',
       '</style>',
       '</head>',
       '<body style="display: flex">',
-      '<pre>',
-      'line',
+      '<pre><span class="Visual">',
+      'l</span>ine2',
       '',
       '</pre>',
       '</body>',
@@ -175,9 +234,9 @@ describe(':TOhtml', function()
     }, fn.readfile(out_file))
   end)
 
-  it('highlight attributes generated', function()
+  it('generates highlight attributes', function()
     --Make sure to uncomment the attribute in `html_syntax_match()`
-    exec('hi LINE gui=' .. table.concat({
+    exec('hi LINE guisp=#00ff00 gui=' .. table.concat({
       'bold',
       'underline',
       'italic',
@@ -286,7 +345,13 @@ describe(':TOhtml', function()
         0,
         { virt_text = { { 'foo' } }, virt_text_pos = 'overlay' }
       )
-      api.nvim_buf_set_extmark(0, ns, 2, 0, { virt_text = { { 'foo' } }, virt_text_pos = 'inline' })
+      api.nvim_buf_set_extmark(
+        0,
+        ns,
+        2,
+        0,
+        { virt_text = { { 'fo┊o', { 'Conceal', 'Comment' } } }, virt_text_pos = 'inline' }
+      )
       --api.nvim_buf_set_extmark(0,ns,3,0,{virt_text={{'foo'}},virt_text_pos='right_align'})
       run_tohtml_and_assert(screen)
     end)
@@ -340,12 +405,12 @@ describe(':TOhtml', function()
     local function run()
       local buf = api.nvim_get_current_buf()
       run_tohtml_and_assert(screen, function()
-        exec_lua [[
-        local outfile = vim.fn.tempname() .. '.html'
-        local html = require('tohtml').tohtml(0,{number_lines=true})
-        vim.fn.writefile(html, outfile)
-        vim.cmd.split(outfile)
-        ]]
+        exec_lua(function()
+          local outfile = vim.fn.tempname() .. '.html'
+          local html = require('tohtml').tohtml(0, { number_lines = true })
+          vim.fn.writefile(html, outfile)
+          vim.cmd.split(outfile)
+        end)
       end)
       api.nvim_set_current_buf(buf)
     end
