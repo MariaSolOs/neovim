@@ -213,6 +213,39 @@ function M._get_urls()
   local cursor = vim.api.nvim_win_get_cursor(0)
   local row = cursor[1] - 1
   local col = cursor[2]
+
+  -- Find LSP document links under the cursor.
+  local params = { textDocument = vim.lsp.util.make_text_document_params(bufnr) }
+  local results = vim.lsp.buf_request_sync(bufnr, 'textDocument/documentLink', params)
+
+  for client_id, result in pairs(results or {}) do
+    if result.error then
+      vim.lsp.log.error(result.error)
+    else
+      local client = assert(vim.lsp.get_client_by_id(client_id))
+      local position = vim.lsp.util.make_position_params(0, client.offset_encoding).position
+
+      local document_links = result.result or {} ---@type lsp.DocumentLink[]
+      for _, document_link in ipairs(document_links) do
+        local range = document_link.range
+        if
+          document_link.target
+          and (
+            (position.line > range.start.line and position.line < range['end'].line)
+            or (position.line == range.start.line and position.character >= range.start.character)
+            or (position.line == range['end'].line and position.character <= range['end'].character)
+          )
+        then
+          local target = document_link.target ---@type string
+          if vim.startswith(target, 'file://') then
+            target = vim.uri_to_fname(target)
+          end
+          table.insert(urls, target)
+        end
+      end
+    end
+  end
+
   local extmarks = vim.api.nvim_buf_get_extmarks(bufnr, -1, { row, col }, { row, col }, {
     details = true,
     type = 'highlight',
